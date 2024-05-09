@@ -1,5 +1,6 @@
 use actix_web::{get, post, web, App, HttpResponse, HttpServer, Responder};
-use modus::yahoo_finance::yahoo_it;
+use time::macros::datetime;
+use modus::yahoo_finance::{get_quotes};
 
 #[get("/")]
 async fn hello() -> impl Responder {
@@ -16,7 +17,9 @@ async fn manual_hello() -> impl Responder {
 }
 
 async fn index() -> impl Responder {
-    yahoo_it().await
+    let start = datetime!(2020-1-1 0:00:00.00 UTC);
+    let end = datetime!(2020-1-31 23:59:59.99 UTC);
+    get_quotes("AAPL", &start, &end).await
 }
 
 #[actix_web::main]
