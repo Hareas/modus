@@ -7,3 +7,4 @@ edition = "2021"
 actix-web = "4"
 time = "0.3.36"
 yahoo_finance_api = "2.1.0"
+serde = { version = "1.0.200", features = ["derive"] }

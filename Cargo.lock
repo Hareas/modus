@@ -840,6 +840,7 @@ name = "modus"
 version = "0.1.0"
 dependencies = [
  "actix-web",
+ "serde",
  "time",
  "yahoo_finance_api",
 ]
