@@ -1,6 +1,7 @@
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 
 use actix_web::{App, get, HttpResponse, HttpServer, post, Responder, web};
+use chrono::DateTime;
 use serde::{Deserialize, Serialize};
 use time::{Date, Month, OffsetDateTime};
 use time::macros::time;
@@ -75,7 +76,7 @@ async fn manual_hello() -> impl Responder {
 
 async fn index(item: web::Json<Portfolio>) -> impl Responder {
     println!("model: {:?}", &item);
-    let mut returns = HashMap::new();
+    let mut returns = BTreeMap::new();
     for n in item.portfolio.iter() {
         let start = OffsetDateTime::new_utc(
             Date::from_calendar_date(
@@ -100,7 +101,7 @@ async fn index(item: web::Json<Portfolio>) -> impl Responder {
         };
         for m in get_quotes(&n.ticker, &start, &end).await.unwrap().iter() {
             returns
-                .entry(m.timestamp)
+                .entry(DateTime::from_timestamp(m.timestamp as i64, 0).unwrap().date_naive())
                 .or_insert_with(Vec::new)
                 .push(Position {
                     price: m.adjclose,
