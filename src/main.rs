@@ -87,19 +87,16 @@ async fn index(item: web::Json<Portfolio>) -> impl Responder {
                 .unwrap(),
             time!(0:00:00),
         );
-        let end = match &n.sell {
-            Some(sell) => OffsetDateTime::new_utc(
-                Date::from_calendar_date(
-                    sell.date.year,
-                    sell.date.match_month(),
-                    sell.date.day,
+        let end = n.sell
+            .as_ref()
+            .map(|sell| {
+                OffsetDateTime::new_utc(
+                    Date::from_calendar_date(sell.date.year, sell.date.match_month(), sell.date.day).unwrap(),
+                    time!(23:59:59),
                 )
-                    .unwrap(),
-                time!(23:59:59),
-            ),
-            None => OffsetDateTime::now_utc(),
-        };
-        for m in get_quotes(&n.ticker, &start, &end).await.unwrap().iter() {
+            })
+            .unwrap_or_else(OffsetDateTime::now_utc);
+        for m in get_quotes(&n.ticker, &start, &end).await.unwrap() {
             returns
                 .entry(DateTime::from_timestamp(m.timestamp as i64, 0).unwrap().date_naive())
                 .or_insert_with(Vec::new)
@@ -107,14 +104,7 @@ async fn index(item: web::Json<Portfolio>) -> impl Responder {
                     price: m.adjclose,
                     quantity: n.quantity,
                 });
-/*            match returns.get_mut(&m.timestamp) {
-                Some(pos) => pos.push(Position{price: m.adjclose, quantity: n.quantity}),
-                None => returns.insert(m.timestamp, vec![Position{price: m.adjclose, quantity: n.quantity}])
-            }
-            returns.insert(m.timestamp, vec![].push(Position{price: m.adjclose, quantity: n.quantity}));
-            returns.push(Return {timestamp: m.timestamp , position: vec![Position{price: m.adjclose, quantity: n.quantity}]});*/
         }
-/*        quotes.push(get_quotes(&n.ticker, &start, &end).await.unwrap());*/
     }
     println!("model: {:?}", &returns);
     handle_response().await
