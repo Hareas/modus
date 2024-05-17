@@ -1,9 +1,17 @@
-use actix_web::{get, post, web, App, HttpResponse, HttpServer, Responder};
-use time::macros::{time};
-use modus::yahoo_finance::{get_quotes, handle_response};
+use std::collections::HashMap;
+
+use actix_web::{App, get, HttpResponse, HttpServer, post, Responder, web};
 use serde::{Deserialize, Serialize};
-use time::{OffsetDateTime, Month};
-use yahoo_finance_api::Quote;
+use time::{Date, Month, OffsetDateTime};
+use time::macros::time;
+
+use modus::yahoo_finance::{get_quotes, handle_response};
+
+#[derive(Debug, Serialize, Deserialize)]
+struct Position {
+    price: f64,
+    quantity: u32
+}
 
 #[derive(Debug, Serialize, Deserialize)]
 struct Portfolio {
@@ -15,6 +23,7 @@ struct Equity {
     ticker: String,
     buy: Transaction,
     sell: Option<Transaction>,
+    quantity: u32
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -66,25 +75,47 @@ async fn manual_hello() -> impl Responder {
 
 async fn index(item: web::Json<Portfolio>) -> impl Responder {
     println!("model: {:?}", &item);
-    let quotes :Vec<Quote>;
+    let mut returns = HashMap::new();
     for n in item.portfolio.iter() {
-        let start = OffsetDateTime::now_utc()
-            .replace_year(n.buy.date.year).unwrap()
-            .replace_month(n.buy.date.match_month()).unwrap()
-            .replace_day(n.buy.date.day).unwrap()
-            .replace_time(time!(0:00:00));
+        let start = OffsetDateTime::new_utc(
+            Date::from_calendar_date(
+                n.buy.date.year,
+                n.buy.date.match_month(),
+                n.buy.date.day,
+            )
+                .unwrap(),
+            time!(0:00:00),
+        );
         let end = match &n.sell {
-            Some(_) => {
-                OffsetDateTime::now_utc()
-                    .replace_year(n.sell.as_ref().unwrap().date.year).unwrap()
-                    .replace_month(n.sell.as_ref().unwrap().date.match_month()).unwrap()
-                    .replace_day(n.sell.as_ref().unwrap().date.day).unwrap()
-                    .replace_time(time!(23:59:59))
-            },
-            _ => OffsetDateTime::now_utc()
+            Some(sell) => OffsetDateTime::new_utc(
+                Date::from_calendar_date(
+                    sell.date.year,
+                    sell.date.match_month(),
+                    sell.date.day,
+                )
+                    .unwrap(),
+                time!(23:59:59),
+            ),
+            None => OffsetDateTime::now_utc(),
         };
-        get_quotes(&n.ticker, &start, &end).await;
+        for m in get_quotes(&n.ticker, &start, &end).await.unwrap().iter() {
+            returns
+                .entry(m.timestamp)
+                .or_insert_with(Vec::new)
+                .push(Position {
+                    price: m.adjclose,
+                    quantity: n.quantity,
+                });
+/*            match returns.get_mut(&m.timestamp) {
+                Some(pos) => pos.push(Position{price: m.adjclose, quantity: n.quantity}),
+                None => returns.insert(m.timestamp, vec![Position{price: m.adjclose, quantity: n.quantity}])
+            }
+            returns.insert(m.timestamp, vec![].push(Position{price: m.adjclose, quantity: n.quantity}));
+            returns.push(Return {timestamp: m.timestamp , position: vec![Position{price: m.adjclose, quantity: n.quantity}]});*/
+        }
+/*        quotes.push(get_quotes(&n.ticker, &start, &end).await.unwrap());*/
     }
+    println!("model: {:?}", &returns);
     handle_response().await
 }
 
