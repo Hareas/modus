@@ -1,8 +1,9 @@
 use actix_web::{get, post, web, App, HttpResponse, HttpServer, Responder};
 use time::macros::{time};
-use modus::yahoo_finance::{get_quotes};
+use modus::yahoo_finance::{get_quotes, handle_response};
 use serde::{Deserialize, Serialize};
 use time::{OffsetDateTime, Month};
+use yahoo_finance_api::Quote;
 
 #[derive(Debug, Serialize, Deserialize)]
 struct Portfolio {
@@ -12,10 +13,14 @@ struct Portfolio {
 #[derive(Debug, Serialize, Deserialize)]
 struct Equity {
     ticker: String,
-    buy_date: TransactionDate,
-    sell_date: Option<TransactionDate>,
-    buy_price: f64,
-    sell_price: Option<f64>,
+    buy: Transaction,
+    sell: Option<Transaction>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct Transaction {
+    date: TransactionDate,
+    price: f64,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -61,21 +66,26 @@ async fn manual_hello() -> impl Responder {
 
 async fn index(item: web::Json<Portfolio>) -> impl Responder {
     println!("model: {:?}", &item);
+    let quotes :Vec<Quote>;
     for n in item.portfolio.iter() {
         let start = OffsetDateTime::now_utc()
-            .replace_year(n.buy_date.year).unwrap()
-            .replace_month(n.buy_date.match_month()).unwrap()
-            .replace_day(n.buy_date.day).unwrap()
+            .replace_year(n.buy.date.year).unwrap()
+            .replace_month(n.buy.date.match_month()).unwrap()
+            .replace_day(n.buy.date.day).unwrap()
             .replace_time(time!(0:00:00));
-        let end = OffsetDateTime::now_utc()
-            .replace_year(n.sell_date.as_ref().unwrap().year).unwrap()
-            .replace_month(n.sell_date.as_ref().unwrap().match_month()).unwrap()
-            .replace_day(n.sell_date.as_ref().unwrap().day).unwrap()
-            .replace_time(time!(23:59:59));
+        let end = match &n.sell {
+            Some(_) => {
+                OffsetDateTime::now_utc()
+                    .replace_year(n.sell.as_ref().unwrap().date.year).unwrap()
+                    .replace_month(n.sell.as_ref().unwrap().date.match_month()).unwrap()
+                    .replace_day(n.sell.as_ref().unwrap().date.day).unwrap()
+                    .replace_time(time!(23:59:59))
+            },
+            _ => OffsetDateTime::now_utc()
+        };
         get_quotes(&n.ticker, &start, &end).await;
-
     }
-    HttpResponse::Ok().body("Hey there!")
+    handle_response().await
 }
 
 #[actix_web::main]
