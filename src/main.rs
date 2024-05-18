@@ -10,6 +10,7 @@ use modus::yahoo_finance::{get_quotes, handle_response};
 
 #[derive(Debug, Serialize, Deserialize)]
 struct Position {
+    old_price: f64,
     price: f64,
     quantity: u32
 }
@@ -96,14 +97,22 @@ async fn index(item: web::Json<Portfolio>) -> impl Responder {
                 )
             })
             .unwrap_or_else(OffsetDateTime::now_utc);
-        for m in get_quotes(&n.ticker, &start, &end).await.unwrap() {
+        let mut old_price = n.buy.price;
+        let quotes = get_quotes(&n.ticker, &start, &end).await.unwrap();
+        for (i, m) in quotes.iter().enumerate() {
             returns
                 .entry(DateTime::from_timestamp(m.timestamp as i64, 0).unwrap().date_naive())
                 .or_insert_with(Vec::new)
                 .push(Position {
-                    price: m.adjclose,
+                    old_price,
+                    price: if i == quotes.len() - 1 {
+                        n.sell.as_ref().map(|sell| sell.price).unwrap_or_else(|| m.adjclose)
+                    } else {
+                        m.adjclose
+                    },
                     quantity: n.quantity,
                 });
+            old_price = m.adjclose;
         }
     }
     println!("model: {:?}", &returns);
