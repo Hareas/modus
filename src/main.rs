@@ -124,15 +124,8 @@ async fn index(item: web::Json<Portfolio>) -> impl Responder {
             old_price = m.adjclose;
         }
     }
-    /*    for (date, positions) in returns {
-        let cap = positions.iter().fold(0.0, |acc, pos| acc + pos.old_price * pos.quantity as f64);
-        let value = positions.iter().fold(0.0, |acc, pos| {
-            let contribution = pos.price * pos.quantity as f64 / cap;
-            acc + contribution
-        });
-        global_returns.insert(date, value);
-    }*/
-    let global_returns: BTreeMap<&NaiveDate, f64> = returns
+    let mut cumulative :f64 = 1.0;
+    let total_returns :BTreeMap<&NaiveDate, f64> = returns
         .iter()
         .map(|(date, positions)| {
             (date, {
@@ -144,8 +137,9 @@ async fn index(item: web::Json<Portfolio>) -> impl Responder {
                     .fold(0.0, |acc, pos| acc + pos.price * pos.quantity as f64 / cap)
             })
         })
+        .map(|(date, rate)| { (date, { cumulative *= rate;  (cumulative - 1.0) * 100.0 })})
         .collect();
-    println!("model: {:?}", &global_returns);
+    println!("model: {:?}", &total_returns);
     handle_response().await
 }
 
