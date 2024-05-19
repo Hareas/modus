@@ -1,10 +1,10 @@
 use std::collections::BTreeMap;
 
-use actix_web::{App, get, HttpResponse, HttpServer, post, Responder, web};
-use chrono::DateTime;
+use actix_web::{get, post, web, App, HttpResponse, HttpServer, Responder};
+use chrono::{DateTime, NaiveDate};
 use serde::{Deserialize, Serialize};
-use time::{Date, Month, OffsetDateTime};
 use time::macros::time;
+use time::{Date, Month, OffsetDateTime};
 
 use modus::yahoo_finance::{get_quotes, handle_response};
 
@@ -12,12 +12,12 @@ use modus::yahoo_finance::{get_quotes, handle_response};
 struct Position {
     old_price: f64,
     price: f64,
-    quantity: u32
+    quantity: u32,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 struct Portfolio {
-    portfolio: Vec<Equity>
+    portfolio: Vec<Equity>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -25,7 +25,7 @@ struct Equity {
     ticker: String,
     buy: Transaction,
     sell: Option<Transaction>,
-    quantity: u32
+    quantity: u32,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -38,7 +38,7 @@ struct Transaction {
 struct TransactionDate {
     year: i32,
     month: u32,
-    day: u8
+    day: u8,
 }
 
 impl TransactionDate {
@@ -56,11 +56,11 @@ impl TransactionDate {
             10 => Month::October,
             11 => Month::November,
             12 => Month::December,
-            _ => Month::January
+            _ => Month::January,
         }
     }
 }
-    
+
 #[get("/")]
 async fn hello() -> impl Responder {
     HttpResponse::Ok().body("Hello world!")
@@ -80,19 +80,21 @@ async fn index(item: web::Json<Portfolio>) -> impl Responder {
     let mut returns = BTreeMap::new();
     for n in item.portfolio.iter() {
         let start = OffsetDateTime::new_utc(
-            Date::from_calendar_date(
-                n.buy.date.year,
-                n.buy.date.match_month(),
-                n.buy.date.day,
-            )
+            Date::from_calendar_date(n.buy.date.year, n.buy.date.match_month(), n.buy.date.day)
                 .unwrap(),
             time!(0:00:00),
         );
-        let end = n.sell
+        let end = n
+            .sell
             .as_ref()
             .map(|sell| {
                 OffsetDateTime::new_utc(
-                    Date::from_calendar_date(sell.date.year, sell.date.match_month(), sell.date.day).unwrap(),
+                    Date::from_calendar_date(
+                        sell.date.year,
+                        sell.date.match_month(),
+                        sell.date.day,
+                    )
+                    .unwrap(),
                     time!(23:59:59),
                 )
             })
@@ -101,12 +103,19 @@ async fn index(item: web::Json<Portfolio>) -> impl Responder {
         let quotes = get_quotes(&n.ticker, &start, &end).await.unwrap();
         for (i, m) in quotes.iter().enumerate() {
             returns
-                .entry(DateTime::from_timestamp(m.timestamp as i64, 0).unwrap().date_naive())
+                .entry(
+                    DateTime::from_timestamp(m.timestamp as i64, 0)
+                        .unwrap()
+                        .date_naive(),
+                )
                 .or_insert_with(Vec::new)
                 .push(Position {
                     old_price,
                     price: if i == quotes.len() - 1 {
-                        n.sell.as_ref().map(|sell| sell.price).unwrap_or_else(|| m.adjclose)
+                        n.sell
+                            .as_ref()
+                            .map(|sell| sell.price)
+                            .unwrap_or_else(|| m.adjclose)
                     } else {
                         m.adjclose
                     },
@@ -115,7 +124,28 @@ async fn index(item: web::Json<Portfolio>) -> impl Responder {
             old_price = m.adjclose;
         }
     }
-    println!("model: {:?}", &returns);
+    /*    for (date, positions) in returns {
+        let cap = positions.iter().fold(0.0, |acc, pos| acc + pos.old_price * pos.quantity as f64);
+        let value = positions.iter().fold(0.0, |acc, pos| {
+            let contribution = pos.price * pos.quantity as f64 / cap;
+            acc + contribution
+        });
+        global_returns.insert(date, value);
+    }*/
+    let global_returns: BTreeMap<&NaiveDate, f64> = returns
+        .iter()
+        .map(|(date, positions)| {
+            (date, {
+                let cap = positions
+                    .iter()
+                    .fold(0.0, |acc, pos| acc + pos.old_price * pos.quantity as f64);
+                positions
+                    .iter()
+                    .fold(0.0, |acc, pos| acc + pos.price * pos.quantity as f64 / cap)
+            })
+        })
+        .collect();
+    println!("model: {:?}", &global_returns);
     handle_response().await
 }
 
@@ -126,12 +156,9 @@ async fn main() -> std::io::Result<()> {
             .service(hello)
             .service(echo)
             .route("/hey", web::get().to(manual_hello))
-            .service(
-                web::scope("/equities")
-                    .route("/index", web::get().to(index)),
-            )
+            .service(web::scope("/equities").route("/index", web::get().to(index)))
     })
-        .bind(("127.0.0.1", 8080))?
-        .run()
-        .await
+    .bind(("127.0.0.1", 8080))?
+    .run()
+    .await
 }
