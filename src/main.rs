@@ -1,12 +1,15 @@
 use std::collections::BTreeMap;
 
-use actix_web::{get, post, web, App, HttpResponse, HttpServer, Responder};
-use chrono::{DateTime, NaiveDate};
+use actix_web::{App, get, HttpResponse, HttpServer, post, Responder, web};
+use chrono::DateTime;
+use rstat::Distribution;
+use rstat::univariate::normal::Normal;
 use serde::{Deserialize, Serialize};
-use time::macros::time;
 use time::{Date, Month, OffsetDateTime};
+use time::macros::time;
+use serde_json::json;
 
-use modus::yahoo_finance::{get_quotes, handle_response};
+use modus::yahoo_finance::get_quotes;
 
 #[derive(Debug, Serialize, Deserialize)]
 struct Position {
@@ -59,6 +62,22 @@ impl TransactionDate {
             _ => Month::January,
         }
     }
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct Options {
+    form: OptionType,
+    market_price: f64,
+    strike: f64,
+    maturity: u8,
+    volatility: f64,
+    rfr: f64
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+enum OptionType {
+    Call,
+    Put
 }
 
 #[get("/")]
@@ -144,6 +163,16 @@ async fn index(item: web::Json<Portfolio>) -> impl Responder {
     //handle_response().await
 }
 
+async fn bs (item: web::Json<Options>) -> impl Responder {
+    let d1 = ((item.market_price / item.strike).ln() + (item.rfr + (item.volatility.powi(2)/2.0)) * item.maturity as f64) / (item.volatility * item.maturity as f64);
+    let d2 = d1 - item.volatility * (item.maturity as f64).sqrt();
+    let bs_price = match item.form {
+        OptionType::Call => item.market_price * Normal::standard().cdf(&d1) - item.strike * (- item.rfr * item.maturity as f64).exp() * Normal::standard().cdf(&d2),
+        OptionType::Put => item.strike * (- item.rfr * item.maturity as f64).exp() * Normal::standard().cdf(&-d2) - item.market_price * Normal::standard().cdf(&-d1)
+    };
+    HttpResponse::Ok().json(json!({"Price": bs_price}))
+}
+
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     HttpServer::new(|| {
@@ -152,6 +181,7 @@ async fn main() -> std::io::Result<()> {
             .service(echo)
             .route("/hey", web::get().to(manual_hello))
             .service(web::scope("/equities").route("/index", web::get().to(index)))
+            .service(web::scope("/options").route("/bs", web::get().to(bs)))
     })
     .bind(("127.0.0.1", 8080))?
     .run()
