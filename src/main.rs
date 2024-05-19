@@ -125,10 +125,10 @@ async fn index(item: web::Json<Portfolio>) -> impl Responder {
         }
     }
     let mut cumulative :f64 = 1.0;
-    let total_returns :BTreeMap<&NaiveDate, f64> = returns
+    let total_returns :BTreeMap<String, f64> = returns
         .iter()
         .map(|(date, positions)| {
-            (date, {
+            (date.to_string(), {
                 let cap = positions
                     .iter()
                     .fold(0.0, |acc, pos| acc + pos.old_price * pos.quantity as f64);
@@ -140,7 +140,8 @@ async fn index(item: web::Json<Portfolio>) -> impl Responder {
         .map(|(date, rate)| { (date, { cumulative *= rate;  (cumulative - 1.0) * 100.0 })})
         .collect();
     println!("model: {:?}", &total_returns);
-    handle_response().await
+    HttpResponse::Ok().json(total_returns)
+    //handle_response().await
 }
 
 #[actix_web::main]
