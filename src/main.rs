@@ -1,5 +1,4 @@
 use std::collections::BTreeMap;
-
 use actix_web::{App, get, HttpResponse, HttpServer, post, Responder, web};
 use chrono::DateTime;
 use rstat::Distribution;
@@ -10,7 +9,6 @@ use time::macros::time;
 use serde_json::json;
 
 use modus::yahoo_finance::get_quotes;
-
 #[derive(Debug, Serialize, Deserialize)]
 struct Position {
     old_price: f64,
@@ -197,6 +195,17 @@ fn kelly_ratio (item: &Options) -> f64 {
     (Normal::standard().cdf(&d2) * w - (1.0 - Normal::standard().cdf(&d2))) / w
 }
 
+async fn montecarlo (item: web::Json<Options>) -> impl Responder {
+
+    let mut v: Vec<f64> = Vec::new();
+    for _ in 0..1000 {
+        let data = item.underlying * ((item.rfr - item.volatility.powi(2) / 2.0) * item.maturity as f64 + item.volatility * (item.maturity as f64).sqrt() * Normal::standard().sample(&mut rand::thread_rng())).exp();
+        v.push(data);
+    }
+    println!("{:?}", v);
+    HttpResponse::Ok().json(json!({"Kelly fraction": 3}))
+}
+
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     HttpServer::new(|| {
@@ -207,7 +216,8 @@ async fn main() -> std::io::Result<()> {
             .service(web::scope("/equities").route("/index", web::get().to(index)))
             .service(web::scope("/options")
                 .route("/bs", web::get().to(bs))
-                .route("/kelly", web::get().to(kelly)))
+                .route("/kelly", web::get().to(kelly))
+                .route("/mc", web::get().to(montecarlo)))
     })
     .bind(("127.0.0.1", 8080))?
     .run()
