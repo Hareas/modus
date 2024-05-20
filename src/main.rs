@@ -67,11 +67,12 @@ impl TransactionDate {
 #[derive(Debug, Serialize, Deserialize)]
 struct Options {
     form: OptionType,
-    market_price: f64,
+    underlying: f64,
     strike: f64,
     maturity: u8,
     volatility: f64,
-    rfr: f64
+    rfr: f64,
+    market_price: Option<f64>
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -164,13 +165,36 @@ async fn index(item: web::Json<Portfolio>) -> impl Responder {
 }
 
 async fn bs (item: web::Json<Options>) -> impl Responder {
-    let d1 = ((item.market_price / item.strike).ln() + (item.rfr + (item.volatility.powi(2)/2.0)) * item.maturity as f64) / (item.volatility * item.maturity as f64);
-    let d2 = d1 - item.volatility * (item.maturity as f64).sqrt();
-    let bs_price = match item.form {
-        OptionType::Call => item.market_price * Normal::standard().cdf(&d1) - item.strike * (- item.rfr * item.maturity as f64).exp() * Normal::standard().cdf(&d2),
-        OptionType::Put => item.strike * (- item.rfr * item.maturity as f64).exp() * Normal::standard().cdf(&-d2) - item.market_price * Normal::standard().cdf(&-d1)
-    };
-    HttpResponse::Ok().json(json!({"Price": bs_price}))
+    HttpResponse::Ok().json(json!({"Price": bs_price(&item)}))
+}
+
+fn bs_price (item: &Options) -> f64 {
+    let d1 = d1(item);
+    let d2 = d2(d1, item);
+    match item.form {
+        OptionType::Call => item.underlying * Normal::standard().cdf(&d1) - item.strike * (- item.rfr * item.maturity as f64).exp() * Normal::standard().cdf(&d2),
+        OptionType::Put => item.strike * (- item.rfr * item.maturity as f64).exp() * Normal::standard().cdf(&-d2) - item.underlying * Normal::standard().cdf(&-d1)
+    }
+}
+
+fn d1 (item: &Options) -> f64 {
+    ((item.underlying / item.strike).ln() + (item.rfr + (item.volatility.powi(2)/2.0)) * item.maturity as f64) / (item.volatility * item.maturity as f64)
+}
+
+fn d2(d1 :f64, item :&Options) -> f64{
+    d1 - item.volatility * (item.maturity as f64).sqrt()
+}
+
+async fn kelly (item: web::Json<Options>) -> impl Responder {
+    HttpResponse::Ok().json(json!({"Kelly fraction": kelly_ratio(&item)}))
+}
+
+fn kelly_ratio (item: &Options) -> f64 {
+    let d1 = d1(item);
+    let d2 = d2(d1, item);
+    //let w = ((item.underlying - item.strike).abs() * (- item.rfr * item.maturity as f64).exp() - item.market_price.unwrap()) / item.market_price.unwrap();
+    let w = (bs_price(item) / Normal::standard().cdf(&d2) - item.market_price.unwrap()) / item.market_price.unwrap();
+    (Normal::standard().cdf(&d2) * w - (1.0 - Normal::standard().cdf(&d2))) / w
 }
 
 #[actix_web::main]
@@ -181,7 +205,9 @@ async fn main() -> std::io::Result<()> {
             .service(echo)
             .route("/hey", web::get().to(manual_hello))
             .service(web::scope("/equities").route("/index", web::get().to(index)))
-            .service(web::scope("/options").route("/bs", web::get().to(bs)))
+            .service(web::scope("/options")
+                .route("/bs", web::get().to(bs))
+                .route("/kelly", web::get().to(kelly)))
     })
     .bind(("127.0.0.1", 8080))?
     .run()
