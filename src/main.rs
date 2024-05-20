@@ -1,4 +1,6 @@
 use std::collections::BTreeMap;
+use std::sync::{Arc, mpsc};
+use std::thread;
 use actix_web::{App, get, HttpResponse, HttpServer, post, Responder, web};
 use chrono::DateTime;
 use rstat::Distribution;
@@ -62,7 +64,7 @@ impl TransactionDate {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Copy, Clone)]
 struct Options {
     form: OptionType,
     underlying: f64,
@@ -73,7 +75,7 @@ struct Options {
     market_price: Option<f64>
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Copy, Clone)]
 enum OptionType {
     Call,
     Put
@@ -196,14 +198,32 @@ fn kelly_ratio (item: &Options) -> f64 {
 }
 
 async fn montecarlo (item: web::Json<Options>) -> impl Responder {
-
-    let mut v: Vec<f64> = Vec::new();
-    for _ in 0..1000 {
-        let data = item.underlying * ((item.rfr - item.volatility.powi(2) / 2.0) * item.maturity as f64 + item.volatility * (item.maturity as f64).sqrt() * Normal::standard().sample(&mut rand::thread_rng())).exp();
-        v.push(data);
+    let values = Arc::new(*item);
+    let (tx, rx) = mpsc::channel();
+    for _ in 0..10000 {
+        let (values, tx) = (values.clone(), tx.clone());
+        thread::spawn(move || {
+            let data = values.underlying * ((values.rfr - values.volatility.powi(2) / 2.0) * values.maturity as f64 + values.volatility * (values.maturity as f64).sqrt() * Normal::standard().sample(&mut rand::thread_rng())).exp();
+            tx.send(data).unwrap()
+        });
     }
-    println!("{:?}", v);
-    HttpResponse::Ok().json(json!({"Kelly fraction": 3}))
+    let mut v :Vec<f64> = Vec::new();
+    for _ in 0..10000 {
+        v.push(rx.recv().unwrap());
+    }
+    let returns :Vec<f64> = v.iter()
+        .map(|&x| match item.form {
+            OptionType::Call => { match x <= item.strike {
+                true => 0.0,
+                false => x - item.strike
+            } }
+            OptionType::Put => { match x >= item.strike {
+                true => 0.0,
+                false => item.strike - x
+            } }
+        } ).collect();
+    let expected = returns.iter().sum::<f64>() / returns.len() as f64;
+    HttpResponse::Ok().json(json!({"Monte-Carlo value": expected}))
 }
 
 #[actix_web::main]
