@@ -11,6 +11,7 @@ use time::macros::time;
 use serde_json::json;
 
 use modus::yahoo_finance::get_quotes;
+
 #[derive(Debug, Serialize, Deserialize)]
 struct Position {
     old_price: f64,
@@ -87,7 +88,6 @@ async fn hello() -> impl Responder {
 }
 
 async fn index(item: web::Json<Portfolio>) -> impl Responder {
-    println!("model: {:?}", &item);
     let mut returns = BTreeMap::new();
     for n in item.portfolio.iter() {
         let start = OffsetDateTime::new_utc(
@@ -150,9 +150,7 @@ async fn index(item: web::Json<Portfolio>) -> impl Responder {
         })
         .map(|(date, rate)| { (date, { cumulative *= rate;  (cumulative - 1.0) * 100.0 })})
         .collect();
-    println!("model: {:?}", &total_returns);
     HttpResponse::Ok().json(total_returns)
-    //handle_response().await
 }
 
 async fn bs (item: web::Json<Options>) -> impl Responder {
