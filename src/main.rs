@@ -86,15 +86,6 @@ async fn hello() -> impl Responder {
     HttpResponse::Ok().body("Hello world!")
 }
 
-#[post("/echo")]
-async fn echo(req_body: String) -> impl Responder {
-    HttpResponse::Ok().body(req_body)
-}
-
-async fn manual_hello() -> impl Responder {
-    HttpResponse::Ok().body("Hey there!")
-}
-
 async fn index(item: web::Json<Portfolio>) -> impl Responder {
     println!("model: {:?}", &item);
     let mut returns = BTreeMap::new();
@@ -192,7 +183,6 @@ async fn kelly (item: web::Json<Options>) -> impl Responder {
 fn kelly_ratio (item: &Options) -> f64 {
     let d1 = d1(item);
     let d2 = d2(d1, item);
-    //let w = ((item.underlying - item.strike).abs() * (- item.rfr * item.maturity as f64).exp() - item.market_price.unwrap()) / item.market_price.unwrap();
     let w = (bs_price(item) / Normal::standard().cdf(&d2) - item.market_price.unwrap()) / item.market_price.unwrap();
     (Normal::standard().cdf(&d2) * w - (1.0 - Normal::standard().cdf(&d2))) / w
 }
@@ -231,8 +221,6 @@ async fn main() -> std::io::Result<()> {
     HttpServer::new(|| {
         App::new()
             .service(hello)
-            .service(echo)
-            .route("/hey", web::get().to(manual_hello))
             .service(web::scope("/equities").route("/index", web::get().to(index)))
             .service(web::scope("/options")
                 .route("/bs", web::get().to(bs))
