@@ -25,7 +25,9 @@ pub mod stock_returns {
     use chrono::DateTime;
     use serde::{Deserialize, Serialize};
     use time::{Date, Month, OffsetDateTime};
+    use time::error::ComponentRange;
     use time::macros::time;
+    use yahoo_finance_api::YahooError;
     use crate::yahoo_finance::get_quotes;
 
     #[derive(Debug, Serialize, Deserialize)]
@@ -80,13 +82,29 @@ pub mod stock_returns {
             }
         }
     }
+
+    pub enum StocksError {
+        ComponentRange,
+        YahooError
+    }
+
+    impl From<ComponentRange> for StocksError {
+        fn from(e: ComponentRange) -> Self {
+            StocksError::ComponentRange
+        }
+    }
+
+    impl From<YahooError> for StocksError {
+        fn from(e: YahooError) -> Self {
+            StocksError::YahooError
+        }
+    }
     
-    pub async fn total_returns (item: web::Json<Portfolio>) -> BTreeMap<String, f64> {
+    pub async fn total_returns (item: web::Json<Portfolio>) -> Result<BTreeMap<String, f64>, StocksError>{
         let mut returns = BTreeMap::new();
         for n in item.portfolio.iter() {
             let start = OffsetDateTime::new_utc(
-                Date::from_calendar_date(n.buy.date.year, n.buy.date.match_month(), n.buy.date.day)
-                    .unwrap(),
+                Date::from_calendar_date(n.buy.date.year, n.buy.date.match_month(), n.buy.date.day)?,
                 time!(0:00:00),
             );
             let end = n
@@ -105,12 +123,12 @@ pub mod stock_returns {
                 })
                 .unwrap_or_else(OffsetDateTime::now_utc);
             let mut old_price = n.buy.price;
-            let quotes = get_quotes(&n.ticker, &start, &end).await.unwrap();
+            let quotes = get_quotes(&n.ticker, &start, &end).await?;
             for (i, m) in quotes.iter().enumerate() {
                 returns
                     .entry(
                         DateTime::from_timestamp(m.timestamp as i64, 0)
-                            .unwrap()
+                            .unwrap_or_default()
                             .date_naive(),
                     )
                     .or_insert_with(Vec::new)
@@ -130,7 +148,7 @@ pub mod stock_returns {
             }
         }
         let mut cumulative :f64 = 1.0;
-        returns
+        Ok(returns
             .iter()
             .map(|(date, positions)| {
                 (date.to_string(), {
@@ -144,12 +162,14 @@ pub mod stock_returns {
             })
             .map(|(date, rate)| { (date, { cumulative *= rate;  (cumulative - 1.0) * 100.0 })})
             .collect()
+        )
     }
 
 }
 
 pub mod options {
     use std::sync::{Arc, mpsc};
+    use std::sync::mpsc::RecvError;
     use std::thread;
     use rstat::Distribution;
     use rstat::univariate::normal::Normal;
@@ -189,26 +209,26 @@ pub mod options {
         d1 - item.volatility * (item.maturity as f64).sqrt()
     }
 
-    pub fn kelly_ratio (item: &Options) -> f64 {
+    pub fn kelly_ratio (item: &Options) -> Option<f64> {
         let d1 = d1(item);
         let d2 = d2(d1, item);
-        let w = (bs_price(item) / Normal::standard().cdf(&d2) - item.market_price.unwrap()) / item.market_price.unwrap();
-        (Normal::standard().cdf(&d2) * w - (1.0 - Normal::standard().cdf(&d2))) / w
+        let w = (bs_price(item) / Normal::standard().cdf(&d2) - item.market_price?) / item.market_price?;
+        Some((Normal::standard().cdf(&d2) * w - (1.0 - Normal::standard().cdf(&d2))) / w)
     }
-    
-    pub fn expected (item :&Options) -> f64 {
+
+    pub fn expected (item :&Options) -> Result<f64, RecvError> {
         let values = Arc::new(*item);
         let (tx, rx) = mpsc::channel();
         for _ in 0..10000 {
             let (values, tx) = (values.clone(), tx.clone());
             thread::spawn(move || {
                 let data = values.underlying * ((values.rfr - values.volatility.powi(2) / 2.0) * values.maturity as f64 + values.volatility * (values.maturity as f64).sqrt() * Normal::standard().sample(&mut rand::thread_rng())).exp();
-                tx.send(data).unwrap()
+                tx.send(data)
             });
         }
         let mut v :Vec<f64> = Vec::new();
         for _ in 0..10000 {
-            v.push(rx.recv().unwrap());
+            v.push(rx.recv()?);
         }
         let returns :Vec<f64> = v.iter()
             .map(|&x| match item.form {
@@ -221,6 +241,6 @@ pub mod options {
                     false => item.strike - x
                 } }
             } ).collect();
-        returns.iter().sum::<f64>() / returns.len() as f64
+        Ok(returns.iter().sum::<f64>() / returns.len() as f64)
     }
 }
