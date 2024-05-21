@@ -1,5 +1,3 @@
-use std::error::Error;
-use std::sync::mpsc::RecvError;
 use actix_web::{App, get, HttpResponse, HttpServer, Responder, web};
 use serde_json::json;
 use modus::stock_returns::{Portfolio, StocksError, total_returns};
