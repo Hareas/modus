@@ -89,13 +89,13 @@ pub mod stock_returns {
     }
 
     impl From<ComponentRange> for StocksError {
-        fn from(e: ComponentRange) -> Self {
+        fn from(_e: ComponentRange) -> Self {
             StocksError::ComponentRange
         }
     }
 
     impl From<YahooError> for StocksError {
-        fn from(e: YahooError) -> Self {
+        fn from(_e: YahooError) -> Self {
             StocksError::YahooError
         }
     }
