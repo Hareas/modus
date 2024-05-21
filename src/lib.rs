@@ -1,3 +1,14 @@
+#[macro_export]
+macro_rules! from {
+    ($enumeration:ident, $error:ident) => {
+        impl From<$error> for $enumeration {
+                fn from(_e: $error) -> Self {
+                    $enumeration::$error
+                }
+            }
+    };
+}
+
 pub mod yahoo_finance {
     use actix_web::{HttpResponse, Responder};
     use time::OffsetDateTime;
@@ -21,6 +32,7 @@ pub mod yahoo_finance {
 
 pub mod stock_returns {
     use std::collections::BTreeMap;
+
     use actix_web::web;
     use chrono::DateTime;
     use serde::{Deserialize, Serialize};
@@ -28,6 +40,7 @@ pub mod stock_returns {
     use time::error::ComponentRange;
     use time::macros::time;
     use yahoo_finance_api::YahooError;
+
     use crate::yahoo_finance::get_quotes;
 
     #[derive(Debug, Serialize, Deserialize)]
@@ -88,17 +101,8 @@ pub mod stock_returns {
         YahooError
     }
 
-    impl From<ComponentRange> for StocksError {
-        fn from(_e: ComponentRange) -> Self {
-            StocksError::ComponentRange
-        }
-    }
-
-    impl From<YahooError> for StocksError {
-        fn from(_e: YahooError) -> Self {
-            StocksError::YahooError
-        }
-    }
+    from!(StocksError, ComponentRange);
+    from!(StocksError, YahooError);
     
     pub async fn total_returns (item: web::Json<Portfolio>) -> Result<BTreeMap<String, f64>, StocksError>{
         let mut returns = BTreeMap::new();
@@ -171,6 +175,7 @@ pub mod options {
     use std::sync::{Arc, mpsc};
     use std::sync::mpsc::RecvError;
     use std::thread;
+
     use rstat::Distribution;
     use rstat::univariate::normal::Normal;
     use serde::{Deserialize, Serialize};
