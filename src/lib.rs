@@ -1,16 +1,10 @@
-#[macro_export]
-macro_rules! from {
-    ($enumeration:ident, $error:ident) => {
-        impl From<$error> for $enumeration {
-                fn from(_e: $error) -> Self {
-                    $enumeration::$error
-                }
-            }
-    };
-}
+//! Long term portfolio performance and option valuation.
+//!
+//! This library has two main functions:
+//!     To provide portfolio performance from historical data, irrespective of the amount invested.
+//!     To calculate option value and provide optimal betting size
 
-pub mod yahoo_finance {
-    use actix_web::{HttpResponse, Responder};
+mod yahoo_finance {
     use time::OffsetDateTime;
     use yahoo_finance_api as yahoo;
     use yahoo_finance_api::{Quote, YahooError};
@@ -23,10 +17,6 @@ pub mod yahoo_finance {
     
     pub async fn get_quotes (ticker: &str, start: &OffsetDateTime, end: &OffsetDateTime) -> Result<Vec<Quote>, YahooError> {
         yahoo_it(ticker, start, end).await
-    }
-
-    pub async fn handle_response () -> impl Responder {
-        HttpResponse::Ok().body("Hey there!")
     }
 }
 
@@ -42,6 +32,8 @@ pub mod stock_returns {
     use yahoo_finance_api::YahooError;
 
     use crate::yahoo_finance::get_quotes;
+
+    pub use modus_derive::From;
 
     #[derive(Debug, Serialize, Deserialize)]
     struct Position {
@@ -75,7 +67,7 @@ pub mod stock_returns {
         month: u32,
         day: u8,
     }
-
+    
     impl TransactionDate {
         fn match_month(&self) -> Month {
             match self.month {
@@ -96,13 +88,11 @@ pub mod stock_returns {
         }
     }
 
+    #[derive(From)]
     pub enum StocksError {
         ComponentRange,
         YahooError
     }
-
-    from!(StocksError, ComponentRange);
-    from!(StocksError, YahooError);
     
     pub async fn total_returns (item: web::Json<Portfolio>) -> Result<BTreeMap<String, f64>, StocksError>{
         let mut returns = BTreeMap::new();
