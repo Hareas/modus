@@ -9,7 +9,7 @@ async fn hello() -> impl Responder {
 }
 
 async fn returns(item: web::Json<Portfolio>) -> impl Responder {
-    match total_returns(item).await {
+    match total_returns(&item).await {
         Ok(res) => HttpResponse::Ok().json(res),
         Err(e) => match e {
             StocksError::ComponentRange => { HttpResponse::BadRequest().json(json!({"Error": "Failed to convert the date"})) }
@@ -23,13 +23,17 @@ async fn bs (item: web::Json<Options>) -> impl Responder {
 }
 
 async fn kelly (item: web::Json<Options>) -> impl Responder {
-    HttpResponse::Ok().json(json!({"Kelly fraction": kelly_ratio(&item)}))
+    match kelly_ratio(&item) {
+        None => HttpResponse::BadRequest().json(json!({"Error": "You haven't included the current market price"})),
+        Some(f) => HttpResponse::Ok().json(json!({"Kelly fraction": f}))
+    }
+    
 }
 
 async fn montecarlo (item: web::Json<Options>) -> impl Responder {
     match expected(&item) {
         Ok(res) => HttpResponse::Ok().json(json!({"Monte-Carlo value based on 10000 simulations": res})),
-        Err(_) => HttpResponse::Ok().json(json!({"Error": "Some iterations couldn't be completed"}))
+        Err(_) => HttpResponse::InternalServerError().json(json!({"Error": "Some iterations couldn't be completed"}))
     }
 }
 

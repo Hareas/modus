@@ -21,19 +21,34 @@ mod yahoo_finance {
 }
 
 pub mod stock_returns {
-    use std::collections::BTreeMap;
+    //! Portfolio performance
+    //!
+    //! Most calculations of portfolio performance don't include the whole data or are affected by when an asset is bought and therefore are not suitable for comparison.
+    //! This module shows performance controlling for those factors.
+    //!
+    //! The function total_returns takes a Portfolio and returns a Result<BTreeMap<String, f64>, StocksError>,
+    //! StocksError being a custom error enum for the error types that can occur.
+    //!
+    //! Usage:
+    //! ```
+    //!     match total_returns(&item).await {
+    //!         Ok(res) => HttpResponse::Ok().json(res),
+    //!         Err(e) => match e {
+    //!             StocksError::ComponentRange => { HttpResponse::BadRequest().json(json!({"Error": "Failed to convert the date"})) }
+    //!             StocksError::YahooError => { HttpResponse::InternalServerError().json(json!({"Error": "Yahoo provided a wrong response or didn't respond"})) }
+    //!         }
+    //!     }
+    //! ```
 
-    use actix_web::web;
+    use std::collections::BTreeMap;
     use chrono::DateTime;
+    pub use modus_derive::From;
     use serde::{Deserialize, Serialize};
     use time::{Date, Month, OffsetDateTime};
     use time::error::ComponentRange;
     use time::macros::time;
     use yahoo_finance_api::YahooError;
-
     use crate::yahoo_finance::get_quotes;
-
-    pub use modus_derive::From;
 
     #[derive(Debug, Serialize, Deserialize)]
     struct Position {
@@ -42,6 +57,7 @@ pub mod stock_returns {
         quantity: u32,
     }
 
+    // Holds the historical data about your portfolio
     #[derive(Debug, Serialize, Deserialize)]
     pub struct Portfolio {
         portfolio: Vec<Equity>,
@@ -88,13 +104,25 @@ pub mod stock_returns {
         }
     }
 
+    // This custom error uses the custom derive macro From to implement the From trait
+    //
+    // Example:
+    // ```
+    //  impl From<ComponentRange> for StocksError {
+    //      fn from (_e: ComponentRange) -> Self {
+    //          StocksError::ComponentRange
+    //      }
+    //  }
+    //```
     #[derive(From)]
     pub enum StocksError {
         ComponentRange,
         YahooError
     }
-    
-    pub async fn total_returns (item: web::Json<Portfolio>) -> Result<BTreeMap<String, f64>, StocksError>{
+
+    // Returns a Result<BTreeMap<String, f64>, StocksError> where the BTreeMap is composed of a date as key and a percentage gain as value
+    // and StocksError is a enum with the different types of Error that might have occurred
+    pub async fn total_returns (item: &Portfolio) -> Result<BTreeMap<String, f64>, StocksError>{
         let mut returns = BTreeMap::new();
         for n in item.portfolio.iter() {
             let start = OffsetDateTime::new_utc(
@@ -162,14 +190,53 @@ pub mod stock_returns {
 }
 
 pub mod options {
+    //! Option valuation and betting optimization
+    //!
+    //! Calculates the value of an European-type option using the [Black-Scholes formula](https://en.wikipedia.org/wiki/Black%E2%80%93Scholes_model#Black%E2%80%93Scholes_formula).
+    //! Note that this is also valid for American-type call options but not for American-type put options, as shown by [Merton (1973)](https://doi.org/10.2307/1913811)
+    //! provided the stock does not pay dividends.
+    //! Because it uses the Black-Scholes formula, it has the same limitations, chiefly among them, the constant volatility
+    //! 
+    //! Usage:
+    //! ```
+    //! bs_price(&item)
+    //! ```
+    //! where item is of the type Options
+    //!
+    //! Alternatively, it performs a [Monte-Carlo analysis](https://en.wikipedia.org/wiki/Monte_Carlo_method) to calculate the option price.
+    //!
+    //! Usage:
+    //! ```
+    //!     match expected(&item) {
+    //!         Ok(res) => HttpResponse::Ok().json(json!({"Monte-Carlo value based on 10000 simulations": res})),
+    //!         Err(_) => HttpResponse::Ok().json(json!({"Error": "Some iterations couldn't be completed"}))
+    //!     }
+    //! ```
+    //! where item is of the type Options
+    //! 
+    //! If one were to be able to consistently find theoretical market values of the options different from their market values one could design an optimal strategy where the
+    //! expected geometric growth rate is maximized by finding the fraction of the bankroll that maximizes the expected value of the logarithm of wealth, also known as the
+    //! [Kelly Critarion](https://en.wikipedia.org/wiki/Kelly_criterion).
+    //! This tries to implement the Kelly Criterion to find that fraction for a given option. I'm not fully certain the implementation is correct however, so you might want to 
+    //! consider a more mature crate for this.
+    //! 
+    //! Usage:
+    //! ```
+    //!     match kelly_ratio(&item) {
+    //!         None => HttpResponse::BadRequest().json(json!({"Error": "You haven't included the current market price"})),
+    //!         Some(f) => HttpResponse::Ok().json(json!({"Kelly fraction": f}))
+    //!     }
+    //! ```
+    //! where item is of the type Options
+    
     use std::sync::{Arc, mpsc};
     use std::sync::mpsc::RecvError;
     use std::thread;
-
     use rstat::Distribution;
     use rstat::univariate::normal::Normal;
     use serde::{Deserialize, Serialize};
 
+    // Holds the option data
     #[derive(Debug, Serialize, Deserialize, Copy, Clone)]
     pub struct Options {
         form: OptionType,
@@ -187,6 +254,7 @@ pub mod options {
         Put
     }
 
+    // Calculates the option value with the Black-Scholes formula
     pub fn bs_price (item: &Options) -> f64 {
         let d1 = d1(item);
         let d2 = d2(d1, item);
@@ -204,6 +272,7 @@ pub mod options {
         d1 - item.volatility * (item.maturity as f64).sqrt()
     }
 
+    // Calculates the Kelly fraction
     pub fn kelly_ratio (item: &Options) -> Option<f64> {
         let d1 = d1(item);
         let d2 = d2(d1, item);
@@ -211,6 +280,7 @@ pub mod options {
         Some((Normal::standard().cdf(&d2) * w - (1.0 - Normal::standard().cdf(&d2))) / w)
     }
 
+    // Performs a Monte-Carlo analysis with 10000 simulations
     pub fn expected (item :&Options) -> Result<f64, RecvError> {
         let values = Arc::new(*item);
         let (tx, rx) = mpsc::channel();
