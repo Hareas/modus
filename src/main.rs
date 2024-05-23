@@ -5,7 +5,7 @@ use modus::options::{Options, bs_price, kelly_ratio, expected};
 
 #[get("/")]
 async fn hello() -> impl Responder {
-    HttpResponse::Ok().body("Hello world!")
+    HttpResponse::Ok().body("Available enpoints:  /equities/returns  /options/bs  /options/kelly  /options/mc")
 }
 
 async fn returns(item: web::Json<Portfolio>) -> impl Responder {
@@ -27,7 +27,7 @@ async fn kelly (item: web::Json<Options>) -> impl Responder {
         None => HttpResponse::BadRequest().json(json!({"Error": "You haven't included the current market price"})),
         Some(f) => HttpResponse::Ok().json(json!({"Kelly fraction": f}))
     }
-    
+
 }
 
 async fn montecarlo (item: web::Json<Options>) -> impl Responder {
