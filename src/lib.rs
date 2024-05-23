@@ -140,7 +140,7 @@ pub mod stock_returns {
                             sell.date.match_month(),
                             sell.date.day,
                         )
-                            .unwrap(),
+                            .unwrap_or(Date::MIN),
                         time!(23:59:59),
                     )
                 })

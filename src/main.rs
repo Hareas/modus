@@ -1,11 +1,10 @@
 use actix_web::{App, get, HttpResponse, HttpServer, Responder, web};
 use serde_json::json;
 use modus::stock_returns::{Portfolio, StocksError, total_returns};
-use modus::options::{Options, bs_price, kelly_ratio, expected, call_me_and_i_call_you};
+use modus::options::{Options, bs_price, kelly_ratio, expected};
 
 #[get("/")]
 async fn hello() -> impl Responder {
-    call_me_and_i_call_you();
     HttpResponse::Ok().body("Available enpoints:  /equities/returns  /options/bs  /options/kelly  /options/mc")
 }
 
