@@ -33,13 +33,12 @@ pub mod stock_returns {
     //!
     //! Usage:
     //! ```
-    //!     match total_returns(&item).await {
-    //!         Ok(res) => HttpResponse::Ok().json(res),
-    //!         Err(e) => match e {
-    //!             StocksError::ComponentRange => { HttpResponse::BadRequest().json(json!({"Error": "Failed to convert the date"})) }
-    //!             StocksError::YahooError => { HttpResponse::InternalServerError().json(json!({"Error": "Yahoo provided a wrong response or didn't respond"})) }
-    //!         }
-    //!     }
+    //!  let portfolio = Portfolio{portfolio: vec![Equity{ticker: "MSFT".to_string(), buy: Transaction { date: TransactionDate {
+    //!         year: 2023,
+    //!         month: 2,
+    //!         day: 1,
+    //!     }, price: 354.0 }, sell: None, quantity: 3 }]};
+    //!  if let Ok(s) = total_returns(&portfolio).await { println!("{:?}", s); }
     //! ```
 
     use std::collections::BTreeMap;
@@ -202,21 +201,34 @@ pub mod options {
     //!
     //! # Usage:
     //! ```
-    //! bs_price(&item)
+    //!  let a_option = Options{
+    //!     form: OptionType::Call,
+    //!     underlying: 43.0,
+    //!     strike: 55.0,
+    //!     maturity: 3,
+    //!     volatility: 0.7,
+    //!     rfr: 0.3,
+    //!     market_price: None,
+    //!  };
+    //!  println!("{}", bs_price(&a_option));
     //! ```
-    //!     where item is of the type Options
     //!
     //! # Monte-Carlo analysis
     //! Alternatively, it performs a [Monte-Carlo analysis](https://en.wikipedia.org/wiki/Monte_Carlo_method) to calculate the option price.
     //!
     //! # Usage:
     //! ```
-    //!     match expected(&item) {
-    //!         Ok(res) => HttpResponse::Ok().json(json!({"Monte-Carlo value based on 10000 simulations": res})),
-    //!         Err(_) => HttpResponse::Ok().json(json!({"Error": "Some iterations couldn't be completed"}))
-    //!     }
+    //! let a_option = Options{
+    //!     form: OptionType::Call,
+    //!     underlying: 43.0,
+    //!     strike: 55.0,
+    //!     maturity: 3,
+    //!     volatility: 0.7,
+    //!     rfr: 0.3,
+    //!     market_price: None,
+    //!  };
+    //!  if let Ok(s) = expected(&a_option) { println!("{:?}", s); }
     //! ```
-    //!     where item is of the type Options
     //!
     //! # Kelly Criterion
     //! If one were to be able to consistently find theoretical market values of the options different from their market values one could design an optimal strategy where the
@@ -227,16 +239,22 @@ pub mod options {
     //!
     //! # Usage:
     //! ```
-    //!     match kelly_ratio(&item) {
-    //!         None => HttpResponse::BadRequest().json(json!({"Error": "You haven't included the current market price"})),
-    //!         Some(f) => HttpResponse::Ok().json(json!({"Kelly fraction": f}))
-    //!     }
+    //! let a_option = Options{
+    //!     form: OptionType::Call,
+    //!     underlying: 43.0,
+    //!     strike: 55.0,
+    //!     maturity: 3,
+    //!     volatility: 0.7,
+    //!     rfr: 0.3,
+    //!     market_price: Some(19.0),
+    //!  };
+    //!  if let Some(s) = kelly_ratio(&a_option) { println!("{:?}", s); }
     //! ```
-    //!     where item is of the type Options
 
     use std::sync::{Arc, mpsc};
     use std::sync::mpsc::RecvError;
     use std::thread;
+
     use rstat::Distribution;
     use rstat::univariate::normal::Normal;
     use serde::{Deserialize, Serialize};
