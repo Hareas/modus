@@ -7,6 +7,7 @@
 //! To calculate option value and provide optimal betting size
 
 mod yahoo_finance {
+    use chrono::DateTime;
     use time::OffsetDateTime;
     use yahoo_finance_api as yahoo;
     use yahoo_finance_api::{Quote, YahooError};
@@ -15,14 +16,16 @@ mod yahoo_finance {
         let provider = yahoo::YahooConnector::new().get_quote_history(ticker, *start, *end).await?;
         // returns historic quotes with daily interval
         let currency = provider.metadata()?.currency;
-        let eight_hours_in_seconds = 3600*8;
         match currency.as_str() {
             "USD" => provider.quotes(),
             _ => {
                 let currency_quotes = yahoo::YahooConnector::new().get_quote_history(&format!("{}=X", currency), *start, *end).await?.quotes()?;
                 let usd_quotes: Vec<Quote> = provider.quotes()?.iter().map(|q| {
-                    let adjusted_timestamp = q.timestamp - eight_hours_in_seconds;
-                    let currency_quote = currency_quotes.iter().find(|x| x.timestamp == adjusted_timestamp);
+                    let currency_quote = currency_quotes.iter().find(|x| DateTime::from_timestamp(x.timestamp as i64, 0)
+                        .unwrap_or_default()
+                        .date_naive() == DateTime::from_timestamp(q.timestamp as i64, 0)
+                        .unwrap_or_default()
+                        .date_naive());
                     Quote {
                         timestamp: q.timestamp,
                         open: q.open,
@@ -42,6 +45,14 @@ mod yahoo_finance {
         yahoo_it(ticker, start, end).await
     }
 
+    async fn price_at_date(ticker: &str, date: &OffsetDateTime) -> Result<f64, YahooError> {
+        if let Some(c) = yahoo::YahooConnector::new().get_quote_history(&format!("{}=X", ticker), *date, *date).await?.quotes()?.first() {
+            Ok(c.close)
+        } else {
+            Err(YahooError::EmptyDataSet)
+        }
+    }
+
     pub async fn check_currency(ticker: &str, date: &OffsetDateTime) -> Result<f64, YahooError> {
         if let Ok(s) = yahoo::YahooConnector::new().get_latest_quotes(ticker, "1d").await {
             if let Ok(r) = s.metadata() {
@@ -51,14 +62,6 @@ mod yahoo_finance {
             };
         };
         Ok(1.0)
-    }
-    
-    async fn price_at_date(ticker: &str, date: &OffsetDateTime) -> Result<f64, YahooError> {
-        if let Some(c) = yahoo::YahooConnector::new().get_quote_history(&format!("{}=X", ticker), *date, *date).await?.quotes()?.first() {
-            Ok(c.close)
-        } else {
-            Err(YahooError::EmptyDataSet)
-        }
     }
 }
 
@@ -82,7 +85,7 @@ pub mod stock_returns {
     //! ```
 
     use std::collections::{BTreeMap, HashSet};
-    use chrono::DateTime;
+    use chrono::{DateTime, NaiveDate};
     pub use modus_derive::From;
     use serde::{Deserialize, Serialize};
     use time::{Date, Month, OffsetDateTime};
@@ -186,10 +189,9 @@ pub mod stock_returns {
             .unwrap_or_else(OffsetDateTime::now_utc);
         Ok((start, end))
     }
-    pub async fn total_returns (item: &Portfolio) -> Result<BTreeMap<String, f64>, StocksError>{
-        let mut returns = BTreeMap::new();
-
-        let holidays = {
+    
+    async fn find_holidays (item: &Portfolio) -> Result<HashSet<NaiveDate>, StocksError> {
+        {
             let mut range :Vec<(OffsetDateTime, OffsetDateTime)> = Vec::new();
             for n in item.portfolio.iter() {
                 let (start, end) = get_range(n)?;
@@ -212,8 +214,12 @@ pub mod stock_returns {
                     seen.remove(&date);
                 }
             }
-            seen
-        };
+            Ok(seen)
+        }
+    }
+    pub async fn total_returns (item: &Portfolio) -> Result<BTreeMap<String, f64>, StocksError>{
+        let mut returns = BTreeMap::new();
+        let holidays = find_holidays(item).await?;
         for n in item.portfolio.iter() {
             let (start, end) = get_range(&n)?;
             let start_currency_adjustment = check_currency(&n.ticker, &start).await?;
@@ -280,7 +286,6 @@ pub mod stock_returns {
             .collect()
         )
     }
-
 }
 
 pub mod options {
