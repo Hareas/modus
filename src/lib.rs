@@ -38,6 +38,10 @@ mod yahoo_finance {
         }
     }
 
+    pub async fn get_quotes (ticker: &str, start: &OffsetDateTime, end: &OffsetDateTime) -> Result<Vec<Quote>, YahooError> {
+        yahoo_it(ticker, start, end).await
+    }
+
     pub async fn check_currency(ticker: &str, date: &OffsetDateTime) -> Result<f64, YahooError> {
         if let Ok(s) = yahoo::YahooConnector::new().get_latest_quotes(ticker, "1d").await {
             if let Ok(r) = s.metadata() {
@@ -49,16 +53,12 @@ mod yahoo_finance {
         Ok(1.0)
     }
     
-    pub async fn price_at_date(ticker: &str, date: &OffsetDateTime) -> Result<f64, YahooError> {
+    async fn price_at_date(ticker: &str, date: &OffsetDateTime) -> Result<f64, YahooError> {
         if let Some(c) = yahoo::YahooConnector::new().get_quote_history(&format!("{}=X", ticker), *date, *date).await?.quotes()?.first() {
             Ok(c.close)
         } else {
             Err(YahooError::EmptyDataSet)
         }
-    }
-    
-    pub async fn get_quotes (ticker: &str, start: &OffsetDateTime, end: &OffsetDateTime) -> Result<Vec<Quote>, YahooError> {
-        yahoo_it(ticker, start, end).await
     }
 }
 
@@ -81,14 +81,14 @@ pub mod stock_returns {
     //!  if let Ok(s) = total_returns(&portfolio).await { println!("{:?}", s); }
     //! ```
 
-    use std::collections::BTreeMap;
+    use std::collections::{BTreeMap, HashSet};
     use chrono::DateTime;
     pub use modus_derive::From;
     use serde::{Deserialize, Serialize};
     use time::{Date, Month, OffsetDateTime};
     use time::error::ComponentRange;
     use time::macros::time;
-    use yahoo_finance_api::YahooError;
+    use yahoo_finance_api::{Quote, YahooError};
     use crate::yahoo_finance::{check_currency, get_quotes};
 
     #[derive(Debug, Serialize, Deserialize)]
@@ -163,61 +163,104 @@ pub mod stock_returns {
 
     /// Returns a Result<BTreeMap<String, f64>, StocksError> where the BTreeMap is composed of a date as key and a percentage gain as value
     /// and StocksError is a enum with the different types of Error that might have occurred
+
+    fn get_range(n: &Equity) -> Result<(OffsetDateTime, OffsetDateTime), ComponentRange> {
+        let start = OffsetDateTime::new_utc(
+            Date::from_calendar_date(n.buy.date.year, n.buy.date.match_month(), n.buy.date.day)?,
+            time!(0:00:00),
+        );
+        let end = n
+            .sell
+            .as_ref()
+            .map(|sell| {
+                OffsetDateTime::new_utc(
+                    Date::from_calendar_date(
+                        sell.date.year,
+                        sell.date.match_month(),
+                        sell.date.day,
+                    )
+                        .unwrap_or(Date::MIN),
+                    time!(23:59:59),
+                )
+            })
+            .unwrap_or_else(OffsetDateTime::now_utc);
+        Ok((start, end))
+    }
     pub async fn total_returns (item: &Portfolio) -> Result<BTreeMap<String, f64>, StocksError>{
         let mut returns = BTreeMap::new();
+
+        let holidays = {
+            let mut range :Vec<(OffsetDateTime, OffsetDateTime)> = Vec::new();
+            for n in item.portfolio.iter() {
+                let (start, end) = get_range(n)?;
+                range.push((start, end));
+            }
+            let (start, end) = range.iter().fold((range[0].0, range[0].1), |(s, e), (rs, re)| {
+                (s.min(*rs), e.max(*re))
+            });
+            let mut historical_data :Vec<Vec<Quote>> = Vec::new();
+            for n in item.portfolio.iter() {
+                historical_data.push(get_quotes(&n.ticker, &start, &end).await?);
+            }
+            let every_timestamp = historical_data.iter().flat_map(|f| f.iter().map(|g| g.timestamp));
+            let mut seen = HashSet::new();
+            for timestamp in every_timestamp {
+                let date = DateTime::from_timestamp(timestamp as i64, 0)
+                    .unwrap_or_default()
+                    .date_naive();
+                if !seen.insert(date) {
+                    seen.remove(&date);
+                }
+            }
+            seen
+        };
         for n in item.portfolio.iter() {
-            let start = OffsetDateTime::new_utc(
-                Date::from_calendar_date(n.buy.date.year, n.buy.date.match_month(), n.buy.date.day)?,
-                time!(0:00:00),
-            );
-            let end = n
-                .sell
-                .as_ref()
-                .map(|sell| {
-                    OffsetDateTime::new_utc(
-                        Date::from_calendar_date(
-                            sell.date.year,
-                            sell.date.match_month(),
-                            sell.date.day,
-                        )
-                            .unwrap_or(Date::MIN),
-                        time!(23:59:59),
-                    )
-                })
-                .unwrap_or_else(OffsetDateTime::now_utc);
-            
+            let (start, end) = get_range(&n)?;
             let start_currency_adjustment = check_currency(&n.ticker, &start).await?;
             let end_currency_adjustment = check_currency(&n.ticker, &end).await?;
             let mut old_price = n.buy.price * start_currency_adjustment;
             let adjusted_selling_data: Option<Transaction> = n.sell.as_ref().map(|s| Transaction { price: s.price * end_currency_adjustment, ..*s });
             let quotes = get_quotes(&n.ticker, &start, &end).await?;
             for (i, m) in quotes.iter().enumerate() {
-                returns
-                    .entry(
-                        DateTime::from_timestamp(m.timestamp as i64, 0)
-                            .unwrap_or_default()
-                            .date_naive(),
-                    )
-                    .or_insert_with(Vec::new)
-                    .push(Position {
-                        old_price,
-                        price: if i == quotes.len() - 1 {
-                            adjusted_selling_data
-                                .as_ref()
-                                .map(|sell| sell.price)
-                                .unwrap_or_else(|| m.adjclose)
+                let date = DateTime::from_timestamp(m.timestamp as i64, 0)
+                    .unwrap_or_default()
+                    .date_naive();
+                if !holidays.contains(&date) {
+                    returns
+                        .entry(
+                            DateTime::from_timestamp(m.timestamp as i64, 0)
+                                .unwrap_or_default()
+                                .date_naive(),
+                        )
+                        .or_insert_with(Vec::new)
+                        .push( if i == quotes.len() - 1 {
+                            Position {
+                                old_price: old_price * m.close / m.adjclose,
+                                price: adjusted_selling_data
+                                    .as_ref()
+                                    .map(|sell| sell.price * m.close / m.adjclose)
+                                    .unwrap_or_else(|| m.adjclose),
+                                quantity: n.quantity,
+                            }
                         } else if i == 0 {
-                            m.close * start_currency_adjustment
+                            Position {
+                                old_price: old_price * m.close / m.adjclose,
+                                price: m.close * start_currency_adjustment * m.close / m.adjclose,
+                                quantity: n.quantity,
+                            }
                         } else {
-                            m.adjclose
-                        },
-                        quantity: n.quantity,
-                    });
-                old_price = if i == quotes.len() - 2 { 
-                    m.close * end_currency_adjustment
-                } else {
-                    m.adjclose
-                };
+                            Position {
+                                old_price,
+                                price: m.adjclose,
+                                quantity: n.quantity,
+                            }
+                        });
+                    old_price = if i == quotes.len() - 2 {
+                        m.close * end_currency_adjustment
+                    } else {
+                        m.adjclose
+                    };
+                }
             }
         }
         let mut cumulative :f64 = 1.0;
