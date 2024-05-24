@@ -38,20 +38,23 @@ mod yahoo_finance {
         }
     }
 
-    pub async fn check_currency(ticker: &str, date: &OffsetDateTime) -> f64 {
+    pub async fn check_currency(ticker: &str, date: &OffsetDateTime) -> Result<f64, YahooError> {
         if let Ok(s) = yahoo::YahooConnector::new().get_latest_quotes(ticker, "1d").await {
             if let Ok(r) = s.metadata() {
-                match r.currency.as_str() {
-                    "USD" => 1.0,
-                    _ => return price_at_date(r.currency.as_str(), date).await
-                };
+                if r.currency.as_str().ne("USD") {
+                    return price_at_date(r.currency.as_str(), date).await
+                }
             };
         };
-        1.0
+        Ok(1.0)
     }
     
-    pub async fn price_at_date(ticker: &str, date: &OffsetDateTime) -> f64 {
-        yahoo::YahooConnector::new().get_quote_history(&format!("{}=X", ticker), *date, *date).await.unwrap().quotes().unwrap().first().unwrap().close
+    pub async fn price_at_date(ticker: &str, date: &OffsetDateTime) -> Result<f64, YahooError> {
+        if let Some(c) = yahoo::YahooConnector::new().get_quote_history(&format!("{}=X", ticker), *date, *date).await?.quotes()?.first() {
+            Ok(c.close)
+        } else {
+            Err(YahooError::EmptyDataSet)
+        }
     }
     
     pub async fn get_quotes (ticker: &str, start: &OffsetDateTime, end: &OffsetDateTime) -> Result<Vec<Quote>, YahooError> {
@@ -183,8 +186,8 @@ pub mod stock_returns {
                 })
                 .unwrap_or_else(OffsetDateTime::now_utc);
             
-            let start_currency_adjustment = check_currency(&n.ticker, &start).await;
-            let end_currency_adjustment = check_currency(&n.ticker, &end).await;
+            let start_currency_adjustment = check_currency(&n.ticker, &start).await?;
+            let end_currency_adjustment = check_currency(&n.ticker, &end).await?;
             let mut old_price = n.buy.price * start_currency_adjustment;
             let adjusted_selling_data: Option<Transaction> = n.sell.as_ref().map(|s| Transaction { price: s.price * end_currency_adjustment, ..*s });
             let quotes = get_quotes(&n.ticker, &start, &end).await?;
