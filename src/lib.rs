@@ -12,9 +12,46 @@ mod yahoo_finance {
     use yahoo_finance_api::{Quote, YahooError};
 
     async fn yahoo_it (ticker: &str, start: &OffsetDateTime, end: &OffsetDateTime) -> Result<Vec<Quote>, YahooError> {
-        let provider = yahoo::YahooConnector::new();
+        let provider = yahoo::YahooConnector::new().get_quote_history(ticker, *start, *end).await?;
         // returns historic quotes with daily interval
-        provider.get_quote_history(ticker, *start, *end).await?.quotes()
+        let currency = provider.metadata()?.currency;
+        let eight_hours_in_seconds = 3600*8;
+        match currency.as_str() {
+            "USD" => provider.quotes(),
+            _ => {
+                let currency_quotes = yahoo::YahooConnector::new().get_quote_history(&format!("{}=X", currency), *start, *end).await?.quotes()?;
+                let usd_quotes: Vec<Quote> = provider.quotes()?.iter().map(|q| {
+                    let adjusted_timestamp = q.timestamp - eight_hours_in_seconds;
+                    let currency_quote = currency_quotes.iter().find(|x| x.timestamp == adjusted_timestamp);
+                    Quote {
+                        timestamp: q.timestamp,
+                        open: q.open,
+                        high: q.high,
+                        low: q.low,
+                        volume: q.volume,
+                        close: q.close,
+                        adjclose: q.adjclose * currency_quote.unwrap_or_else(|| currency_quotes.last().unwrap()).adjclose,
+                    }
+                }).collect();
+                Ok(usd_quotes)
+            }
+        }
+    }
+
+    pub async fn check_currency(ticker: &str, date: &OffsetDateTime) -> f64 {
+        if let Ok(s) = yahoo::YahooConnector::new().get_latest_quotes(ticker, "1d").await {
+            if let Ok(r) = s.metadata() {
+                match r.currency.as_str() {
+                    "USD" => 1.0,
+                    _ => return price_at_date(r.currency.as_str(), date).await
+                };
+            };
+        };
+        1.0
+    }
+    
+    pub async fn price_at_date(ticker: &str, date: &OffsetDateTime) -> f64 {
+        yahoo::YahooConnector::new().get_quote_history(&format!("{}=X", ticker), *date, *date).await.unwrap().quotes().unwrap().first().unwrap().close
     }
     
     pub async fn get_quotes (ticker: &str, start: &OffsetDateTime, end: &OffsetDateTime) -> Result<Vec<Quote>, YahooError> {
@@ -49,7 +86,7 @@ pub mod stock_returns {
     use time::error::ComponentRange;
     use time::macros::time;
     use yahoo_finance_api::YahooError;
-    use crate::yahoo_finance::get_quotes;
+    use crate::yahoo_finance::{check_currency, get_quotes};
 
     #[derive(Debug, Serialize, Deserialize)]
     struct Position {
@@ -78,7 +115,7 @@ pub mod stock_returns {
         price: f64,
     }
 
-    #[derive(Debug, Serialize, Deserialize)]
+    #[derive(Debug, Copy, Clone, Serialize, Deserialize)]
     struct TransactionDate {
         year: i32,
         month: u32,
@@ -145,7 +182,11 @@ pub mod stock_returns {
                     )
                 })
                 .unwrap_or_else(OffsetDateTime::now_utc);
-            let mut old_price = n.buy.price;
+            
+            let start_currency_adjustment = check_currency(&n.ticker, &start).await;
+            let end_currency_adjustment = check_currency(&n.ticker, &end).await;
+            let mut old_price = n.buy.price * start_currency_adjustment;
+            let adjusted_selling_data: Option<Transaction> = n.sell.as_ref().map(|s| Transaction { price: s.price * end_currency_adjustment, ..*s });
             let quotes = get_quotes(&n.ticker, &start, &end).await?;
             for (i, m) in quotes.iter().enumerate() {
                 returns
@@ -158,16 +199,22 @@ pub mod stock_returns {
                     .push(Position {
                         old_price,
                         price: if i == quotes.len() - 1 {
-                            n.sell
+                            adjusted_selling_data
                                 .as_ref()
                                 .map(|sell| sell.price)
                                 .unwrap_or_else(|| m.adjclose)
+                        } else if i == 0 {
+                            m.close * start_currency_adjustment
                         } else {
                             m.adjclose
                         },
                         quantity: n.quantity,
                     });
-                old_price = m.adjclose;
+                old_price = if i == quotes.len() - 2 { 
+                    m.close * end_currency_adjustment
+                } else {
+                    m.adjclose
+                };
             }
         }
         let mut cumulative :f64 = 1.0;
