@@ -1,9 +1,9 @@
 //! Long term portfolio performance and option valuation.
 //!
 //! This library has two main functions:
-//! 
+//!
 //! To provide portfolio performance from historical data, irrespective of the amount invested.
-//! 
+//!
 //! To calculate option value and provide optimal betting size
 
 mod yahoo_finance {
@@ -12,9 +12,15 @@ mod yahoo_finance {
     use yahoo_finance_api as yahoo;
     use yahoo_finance_api::{Quote, YahooError};
 
-    async fn yahoo_it (ticker: &str, start: &OffsetDateTime, end: &OffsetDateTime) -> Result<Vec<Quote>, YahooError> {
+    async fn yahoo_it(
+        ticker: &str,
+        start: &OffsetDateTime,
+        end: &OffsetDateTime,
+    ) -> Result<Vec<Quote>, YahooError> {
         // returns historic quotes with daily interval
-        let provider = yahoo::YahooConnector::new().get_quote_history(ticker, *start, *end).await?;
+        let provider = yahoo::YahooConnector::new()
+            .get_quote_history(ticker, *start, *end)
+            .await?;
         // gets the currency the data is in
         let currency = provider.metadata()?.currency;
         // converts the adjclose to USD
@@ -22,31 +28,53 @@ mod yahoo_finance {
             "USD" => provider.quotes(),
             _ => {
                 // returns the exchange rate for the relevant period
-                let currency_quotes = yahoo::YahooConnector::new().get_quote_history(&format!("{}=X", currency), *start, *end).await?.quotes()?;
+                let currency_quotes = yahoo::YahooConnector::new()
+                    .get_quote_history(&format!("{}=X", currency), *start, *end)
+                    .await?
+                    .quotes()?;
                 // applies the exchange rate to adjclose
-                let usd_quotes: Vec<Quote> = provider.quotes()?.iter().map(|q| {
-                    let currency_quote = currency_quotes.iter().find(|x| DateTime::from_timestamp(x.timestamp as i64, 0)
-                        .unwrap_or_default()
-                        .date_naive() == DateTime::from_timestamp(q.timestamp as i64, 0)
-                        .unwrap_or_default()
-                        .date_naive());
-                    Quote {
-                        adjclose: q.adjclose * currency_quote.unwrap_or_else(|| currency_quotes.last().unwrap()).adjclose,
-                        ..*q
-                    }
-                }).collect();
+                let usd_quotes: Vec<Quote> = provider
+                    .quotes()?
+                    .iter()
+                    .map(|q| {
+                        let currency_quote = currency_quotes.iter().find(|x| {
+                            DateTime::from_timestamp(x.timestamp as i64, 0)
+                                .unwrap_or_default()
+                                .date_naive()
+                                == DateTime::from_timestamp(q.timestamp as i64, 0)
+                                    .unwrap_or_default()
+                                    .date_naive()
+                        });
+                        Quote {
+                            adjclose: q.adjclose
+                                * currency_quote
+                                    .unwrap_or_else(|| currency_quotes.last().unwrap())
+                                    .adjclose,
+                            ..*q
+                        }
+                    })
+                    .collect();
                 Ok(usd_quotes)
             }
         }
     }
-    
-    pub async fn get_quotes (ticker: &str, start: &OffsetDateTime, end: &OffsetDateTime) -> Result<Vec<Quote>, YahooError> {
+
+    pub async fn get_quotes(
+        ticker: &str,
+        start: &OffsetDateTime,
+        end: &OffsetDateTime,
+    ) -> Result<Vec<Quote>, YahooError> {
         yahoo_it(ticker, start, end).await
     }
 
     // returns the exchange rate at a specific date
     async fn price_at_date(ticker: &str, date: &OffsetDateTime) -> Result<f64, YahooError> {
-        if let Some(c) = yahoo::YahooConnector::new().get_quote_history(&format!("{}=X", ticker), *date, *date).await?.quotes()?.first() {
+        if let Some(c) = yahoo::YahooConnector::new()
+            .get_quote_history(&format!("{}=X", ticker), *date, *date)
+            .await?
+            .quotes()?
+            .first()
+        {
             Ok(c.close)
         } else {
             Err(YahooError::EmptyDataSet)
@@ -55,10 +83,13 @@ mod yahoo_finance {
 
     // returns the exchange rate with respect to the USD
     pub async fn check_currency(ticker: &str, date: &OffsetDateTime) -> Result<f64, YahooError> {
-        if let Ok(s) = yahoo::YahooConnector::new().get_latest_quotes(ticker, "1d").await {
+        if let Ok(s) = yahoo::YahooConnector::new()
+            .get_latest_quotes(ticker, "1d")
+            .await
+        {
             if let Ok(r) = s.metadata() {
                 if r.currency.as_str().ne("USD") {
-                    return price_at_date(r.currency.as_str(), date).await
+                    return price_at_date(r.currency.as_str(), date).await;
                 }
             };
         };
@@ -85,15 +116,15 @@ pub mod stock_returns {
     //!  if let Ok(s) = total_returns(&portfolio).await { println!("{:?}", s); }
     //! ```
 
-    use std::collections::{BTreeMap, HashSet};
+    use crate::yahoo_finance::{check_currency, get_quotes};
     use chrono::{DateTime, NaiveDate};
     pub use modus_derive::From;
     use serde::{Deserialize, Serialize};
-    use time::{Date, Month, OffsetDateTime};
+    use std::collections::{BTreeMap, HashSet};
     use time::error::ComponentRange;
     use time::macros::time;
+    use time::{Date, Month, OffsetDateTime};
     use yahoo_finance_api::{Quote, YahooError};
-    use crate::yahoo_finance::{check_currency, get_quotes};
 
     #[derive(Debug, Serialize, Deserialize)]
     struct Position {
@@ -128,7 +159,7 @@ pub mod stock_returns {
         month: u32,
         day: u8,
     }
-    
+
     impl TransactionDate {
         fn match_month(&self) -> Month {
             match self.month {
@@ -162,7 +193,7 @@ pub mod stock_returns {
     #[derive(From)]
     pub enum StocksError {
         ComponentRange,
-        YahooError
+        YahooError,
     }
 
     // the Ok variant is a range with dates in YYYY-MM_DD
@@ -181,31 +212,35 @@ pub mod stock_returns {
                         sell.date.match_month(),
                         sell.date.day,
                     )
-                        .unwrap_or(Date::MIN),
+                    .unwrap_or(Date::MIN),
                     time!(23:59:59),
                 )
             })
             .unwrap_or_else(OffsetDateTime::now_utc);
         Ok((start, end))
     }
-    
+
     // returns a Result<HashSet<NaiveDate>, StocksError> where the Ok variant is a HashSet with all the holidays
-    async fn find_holidays (item: &Portfolio) -> Result<HashSet<NaiveDate>, StocksError> {
+    async fn find_holidays(item: &Portfolio) -> Result<HashSet<NaiveDate>, StocksError> {
         {
-            let mut range :Vec<(OffsetDateTime, OffsetDateTime)> = Vec::new();
+            let mut range: Vec<(OffsetDateTime, OffsetDateTime)> = Vec::new();
             for n in item.portfolio.iter() {
                 let (start, end) = get_range(n)?;
                 range.push((start, end));
             }
             // finds the earliest and latest date and assigns them to start and end, respectively
-            let (start, end) = range.iter().fold((range[0].0, range[0].1), |(s, e), (rs, re)| {
-                (s.min(*rs), e.max(*re))
-            });
-            let mut historical_data :Vec<Vec<Quote>> = Vec::new();
+            let (start, end) = range
+                .iter()
+                .fold((range[0].0, range[0].1), |(s, e), (rs, re)| {
+                    (s.min(*rs), e.max(*re))
+                });
+            let mut historical_data: Vec<Vec<Quote>> = Vec::new();
             for n in item.portfolio.iter() {
                 historical_data.push(get_quotes(&n.ticker, &start, &end).await?);
             }
-            let every_timestamp = historical_data.iter().flat_map(|f| f.iter().map(|g| g.timestamp));
+            let every_timestamp = historical_data
+                .iter()
+                .flat_map(|f| f.iter().map(|g| g.timestamp));
             let mut seen = HashSet::new();
             for timestamp in every_timestamp {
                 let date = DateTime::from_timestamp(timestamp as i64, 0)
@@ -222,7 +257,7 @@ pub mod stock_returns {
 
     /// Returns a Result<BTreeMap<String, f64>, StocksError> where the BTreeMap is composed of a date as key and a percentage gain as value
     /// and StocksError is a enum with the different types of Error that might have occurred
-    pub async fn total_returns (item: &Portfolio) -> Result<BTreeMap<String, f64>, StocksError>{
+    pub async fn total_returns(item: &Portfolio) -> Result<BTreeMap<String, f64>, StocksError> {
         // a BTreeMap because the data should be ordered by key
         let mut returns = BTreeMap::new();
         let holidays = find_holidays(item).await?;
@@ -235,7 +270,10 @@ pub mod stock_returns {
             // buy price in USD at the date of buying
             let mut old_price = n.buy.price * start_currency_adjustment;
             // sets price to the price in USD at the time of selling
-            let adjusted_selling_data: Option<Transaction> = n.sell.as_ref().map(|s| Transaction { price: s.price * end_currency_adjustment, ..*s });
+            let adjusted_selling_data: Option<Transaction> = n.sell.as_ref().map(|s| Transaction {
+                price: s.price * end_currency_adjustment,
+                ..*s
+            });
             // returns all the quotes for that ticker in the specified range
             let quotes = get_quotes(&n.ticker, &start, &end).await?;
             for (i, m) in quotes.iter().enumerate() {
@@ -246,22 +284,18 @@ pub mod stock_returns {
                 // checks if it's 5pm somewhere, if it is, grabs a beer
                 if !holidays.contains(&date) {
                     returns
-                        .entry(
-                            date,
-                        )
+                        .entry(date)
                         .or_insert_with(Vec::new)
-                        .push(
-                            if i == quotes.len() - 1 {
-                                Position {
-                                    // if it's the last quote, weights the old price by the difference between the close and adjclose to avoid distortions...
-                                    old_price: old_price * m.close / m.adjclose,
-                                    // ... and sets the selling price in USD if it has been sold and does the same weighting or keeps the adjclose otherwise
-                                    price: adjusted_selling_data
-                                        .as_ref()
-                                        .map(|sell| sell.price * m.close / m.adjclose)
-                                        .unwrap_or_else(|| m.adjclose),
-                                    quantity: n.quantity,
-        
+                        .push(if i == quotes.len() - 1 {
+                            Position {
+                                // if it's the last quote, weights the old price by the difference between the close and adjclose to avoid distortions...
+                                old_price: old_price * m.close / m.adjclose,
+                                // ... and sets the selling price in USD if it has been sold and does the same weighting or keeps the adjclose otherwise
+                                price: adjusted_selling_data
+                                    .as_ref()
+                                    .map(|sell| sell.price * m.close / m.adjclose)
+                                    .unwrap_or_else(|| m.adjclose),
+                                quantity: n.quantity,
                             }
                         } else if i == 0 {
                             Position {
@@ -286,7 +320,7 @@ pub mod stock_returns {
                 }
             }
         }
-        let mut cumulative :f64 = 1.0;
+        let mut cumulative: f64 = 1.0;
         Ok(returns
             .iter()
             .map(|(date, positions)| {
@@ -302,9 +336,13 @@ pub mod stock_returns {
                 })
             })
             // transforms the daily aggregate growth into continuous growth in percentage
-            .map(|(date, rate)| { (date, { cumulative *= rate;  (cumulative - 1.0) * 100.0 })})
-            .collect()
-        )
+            .map(|(date, rate)| {
+                (date, {
+                    cumulative *= rate;
+                    (cumulative - 1.0) * 100.0
+                })
+            })
+            .collect())
     }
 }
 
@@ -369,12 +407,12 @@ pub mod options {
     //!  if let Some(s) = kelly_ratio(&a_option) { println!("{:?}", s); }
     //! ```
 
-    use std::sync::{Arc, mpsc};
-    use std::sync::mpsc::RecvError;
-    use std::thread;
-    use rstat::Distribution;
     use rstat::univariate::normal::Normal;
+    use rstat::Distribution;
     use serde::{Deserialize, Serialize};
+    use std::sync::mpsc::RecvError;
+    use std::sync::{mpsc, Arc};
+    use std::thread;
 
     /// Holds the option data
     #[derive(Debug, Serialize, Deserialize, Copy, Clone)]
@@ -385,70 +423,90 @@ pub mod options {
         maturity: u8,
         volatility: f64,
         rfr: f64,
-        market_price: Option<f64>
+        market_price: Option<f64>,
     }
 
     #[derive(Debug, Serialize, Deserialize, Copy, Clone)]
     enum OptionType {
         Call,
-        Put
+        Put,
     }
 
     /// Calculates the option value with the Black-Scholes formula
-    pub fn bs_price (item: &Options) -> f64 {
+    pub fn bs_price(item: &Options) -> f64 {
         let d1 = d1(item);
         let d2 = d2(d1, item);
         match item.form {
-            OptionType::Call => item.underlying * Normal::standard().cdf(&d1) - item.strike * (- item.rfr * item.maturity as f64).exp() * Normal::standard().cdf(&d2),
-            OptionType::Put => item.strike * (- item.rfr * item.maturity as f64).exp() * Normal::standard().cdf(&-d2) - item.underlying * Normal::standard().cdf(&-d1)
+            OptionType::Call => {
+                item.underlying * Normal::standard().cdf(&d1)
+                    - item.strike
+                        * (-item.rfr * item.maturity as f64).exp()
+                        * Normal::standard().cdf(&d2)
+            }
+            OptionType::Put => {
+                item.strike
+                    * (-item.rfr * item.maturity as f64).exp()
+                    * Normal::standard().cdf(&-d2)
+                    - item.underlying * Normal::standard().cdf(&-d1)
+            }
         }
     }
 
-    fn d1 (item: &Options) -> f64 {
-        ((item.underlying / item.strike).ln() + (item.rfr + (item.volatility.powi(2)/2.0)) * item.maturity as f64) / (item.volatility * item.maturity as f64)
+    fn d1(item: &Options) -> f64 {
+        ((item.underlying / item.strike).ln()
+            + (item.rfr + (item.volatility.powi(2) / 2.0)) * item.maturity as f64)
+            / (item.volatility * item.maturity as f64)
     }
 
-    fn d2(d1 :f64, item :&Options) -> f64{
+    fn d2(d1: f64, item: &Options) -> f64 {
         d1 - item.volatility * (item.maturity as f64).sqrt()
     }
 
     /// Calculates the Kelly fraction
-    pub fn kelly_ratio (item: &Options) -> Option<f64> {
+    pub fn kelly_ratio(item: &Options) -> Option<f64> {
         let d1 = d1(item);
         let d2 = d2(d1, item);
-        let w = (bs_price(item) / Normal::standard().cdf(&d2) - item.market_price?) / item.market_price?;
+        let w = (bs_price(item) / Normal::standard().cdf(&d2) - item.market_price?)
+            / item.market_price?;
         Some((Normal::standard().cdf(&d2) * w - (1.0 - Normal::standard().cdf(&d2))) / w)
     }
 
     /// Performs a Monte-Carlo analysis with 10000 simulations
-    pub fn expected (item :&Options) -> Result<f64, RecvError> {
+    pub fn expected(item: &Options) -> Result<f64, RecvError> {
         // an arc because the value is immutable between threads
         let values = Arc::new(*item);
         let (tx, rx) = mpsc::channel();
         for _ in 0..10000 {
             let (values, tx) = (values.clone(), tx.clone());
             thread::spawn(move || {
-                let data = values.underlying * ((values.rfr - values.volatility.powi(2) / 2.0) * values.maturity as f64 + values.volatility * (values.maturity as f64).sqrt() * Normal::standard().sample(&mut rand::thread_rng())).exp();
+                let data = values.underlying
+                    * ((values.rfr - values.volatility.powi(2) / 2.0) * values.maturity as f64
+                        + values.volatility
+                            * (values.maturity as f64).sqrt()
+                            * Normal::standard().sample(&mut rand::thread_rng()))
+                    .exp();
                 tx.send(data)
             });
         }
-        let mut v :Vec<f64> = Vec::new();
+        let mut v: Vec<f64> = Vec::new();
         // receives the result of an iteration and propagates it
         for _ in 0..10000 {
             v.push(rx.recv()?);
         }
         // calculates the return for each iteration
-        let returns :Vec<f64> = v.iter()
+        let returns: Vec<f64> = v
+            .iter()
             .map(|&x| match item.form {
-                OptionType::Call => { match x <= item.strike {
+                OptionType::Call => match x <= item.strike {
                     true => 0.0,
-                    false => x - item.strike
-                } }
-                OptionType::Put => { match x >= item.strike {
+                    false => x - item.strike,
+                },
+                OptionType::Put => match x >= item.strike {
                     true => 0.0,
-                    false => item.strike - x
-                } }
-            } ).collect();
+                    false => item.strike - x,
+                },
+            })
+            .collect();
         // computes the average
         Ok(returns.iter().sum::<f64>() / returns.len() as f64)
     }
