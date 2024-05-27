@@ -2,7 +2,6 @@ use actix_web::{get, web, App, HttpResponse, HttpServer, Responder};
 use modus::options::{bs_price, expected, kelly_ratio, Options};
 use modus::stock_returns::{total_returns, Portfolio, StocksError};
 use serde_json::json;
-
 #[get("/")]
 async fn hello() -> impl Responder {
     HttpResponse::Ok()
