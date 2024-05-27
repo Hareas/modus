@@ -121,9 +121,9 @@ pub mod stock_returns {
     use chrono::{DateTime, NaiveDate};
     pub use modus_derive::From;
     use serde::{Deserialize, Serialize};
-    use time::{Date, Month, OffsetDateTime};
     use time::error::ComponentRange;
     use time::macros::time;
+    use time::{Date, Month, OffsetDateTime};
     use yahoo_finance_api::{Quote, YahooError};
 
     use crate::yahoo_finance::{check_currency, get_quotes};
@@ -409,12 +409,12 @@ pub mod options {
     //!  if let Some(s) = kelly_ratio(&a_option) { println!("{:?}", s); }
     //! ```
 
-    use std::sync::{Arc, mpsc};
-    use std::sync::mpsc::RecvError;
-    use std::thread;
-    use rstat::Distribution;
     use rstat::univariate::normal::Normal;
+    use rstat::Distribution;
     use serde::{Deserialize, Serialize};
+    use std::sync::mpsc::RecvError;
+    use std::sync::{mpsc, Arc};
+    use std::thread;
 
     /// Holds the option data
     #[derive(Debug, Serialize, Deserialize, Copy, Clone)]
