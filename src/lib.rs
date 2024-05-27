@@ -116,15 +116,17 @@ pub mod stock_returns {
     //!  if let Ok(s) = total_returns(&portfolio).await { println!("{:?}", s); }
     //! ```
 
-    use crate::yahoo_finance::{check_currency, get_quotes};
+    use std::collections::{BTreeMap, HashSet};
+
     use chrono::{DateTime, NaiveDate};
     pub use modus_derive::From;
     use serde::{Deserialize, Serialize};
-    use std::collections::{BTreeMap, HashSet};
+    use time::{Date, Month, OffsetDateTime};
     use time::error::ComponentRange;
     use time::macros::time;
-    use time::{Date, Month, OffsetDateTime};
     use yahoo_finance_api::{Quote, YahooError};
+
+    use crate::yahoo_finance::{check_currency, get_quotes};
 
     #[derive(Debug, Serialize, Deserialize)]
     struct Position {
@@ -407,12 +409,12 @@ pub mod options {
     //!  if let Some(s) = kelly_ratio(&a_option) { println!("{:?}", s); }
     //! ```
 
-    use rstat::univariate::normal::Normal;
-    use rstat::Distribution;
-    use serde::{Deserialize, Serialize};
+    use std::sync::{Arc, mpsc};
     use std::sync::mpsc::RecvError;
-    use std::sync::{mpsc, Arc};
     use std::thread;
+    use rstat::Distribution;
+    use rstat::univariate::normal::Normal;
+    use serde::{Deserialize, Serialize};
 
     /// Holds the option data
     #[derive(Debug, Serialize, Deserialize, Copy, Clone)]
@@ -455,7 +457,7 @@ pub mod options {
     fn d1(item: &Options) -> f64 {
         ((item.underlying / item.strike).ln()
             + (item.rfr + (item.volatility.powi(2) / 2.0)) * item.maturity as f64)
-            / (item.volatility * item.maturity as f64)
+            / (item.volatility * (item.maturity as f64).sqrt())
     }
 
     fn d2(d1: f64, item: &Options) -> f64 {
@@ -499,11 +501,11 @@ pub mod options {
             .map(|&x| match item.form {
                 OptionType::Call => match x <= item.strike {
                     true => 0.0,
-                    false => x - item.strike,
+                    false => (x - item.strike) / (1.0 + item.rfr).powi(item.maturity as i32),
                 },
                 OptionType::Put => match x >= item.strike {
                     true => 0.0,
-                    false => item.strike - x,
+                    false => (item.strike - x) / (1.0 + item.rfr).powi(item.maturity as i32),
                 },
             })
             .collect();
