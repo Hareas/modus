@@ -1,6 +1,8 @@
+#![doc(html_logo_url = "https://raw.githubusercontent.com/Hareas/modus/05edb670f6d7ca52a58c4240311a1f69cae4cf06/logo.svg")]
+//! 
 //! Long term portfolio performance and option valuation.
 //!
-//! This library has two main functions:
+//! This library has two main purposes:
 //!
 //! To provide portfolio performance from historical data, irrespective of the amount invested.
 //!
@@ -352,7 +354,7 @@ pub mod options {
     //! Option valuation and betting optimization
     //!
     //! # Black-Scholes formula
-    //! Calculates the value of an European-type option using the [Black-Scholes formula](https://en.wikipedia.org/wiki/Black%E2%80%93Scholes_model#Black%E2%80%93Scholes_formula).
+    //! Calculates the value of a European-type option using the [Black-Scholes formula](https://en.wikipedia.org/wiki/Black%E2%80%93Scholes_model#Black%E2%80%93Scholes_formula).
     //! Note that this is also valid for American-type call options but not for American-type put options, as shown by [Merton (1973)](https://doi.org/10.2307/1913811)
     //! provided the stock does not pay dividends.
     //! Because it uses the Black-Scholes formula, it has the same limitations, chiefly among them, the constant volatility
@@ -391,7 +393,7 @@ pub mod options {
     //! # Kelly Criterion
     //! If one were to be able to consistently find theoretical market values of the options different from their market values one could design an optimal strategy where the
     //! expected geometric growth rate is maximized by finding the fraction of the bankroll that maximizes the expected value of the logarithm of wealth, also known as the
-    //! [Kelly Critarion](https://en.wikipedia.org/wiki/Kelly_criterion).
+    //! [Kelly Criterion](https://en.wikipedia.org/wiki/Kelly_criterion).
     //! This tries to implement the Kelly Criterion to find that fraction for a given option. I'm not fully certain the implementation is correct however, so you might want to
     //! consider a more mature crate for this.
     //!

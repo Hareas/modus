@@ -1,5 +1,9 @@
+<br />
 <div align="center">
-  
+  <a href="https://github.com/Hareas/modus">
+    <img src="https://raw.githubusercontent.com/Hareas/modus/05edb670f6d7ca52a58c4240311a1f69cae4cf06/logo.svg" alt="Logo" width="100" height="100">
+  </a>
+
   <h1 align="center">Modus</h1>
 
   <p align="center">

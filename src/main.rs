@@ -5,7 +5,7 @@ use serde_json::json;
 #[get("/")]
 async fn hello() -> impl Responder {
     HttpResponse::Ok()
-        .body("Available enpoints:  /equities/returns  /options/bs  /options/kelly  /options/mc")
+        .body("Available enpoints: \n /equities/returns \n /options/bs \n /options/kelly \n /options/mc")
 }
 
 async fn returns(item: web::Json<Portfolio>) -> impl Responder {
@@ -45,6 +45,7 @@ async fn montecarlo(item: web::Json<Options>) -> impl Responder {
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
+    println!("Modus now running on localhost:8080 \n Available endpoints: \n /equities/returns \n /options/bs \n /options/kelly \n /options/mc");
     HttpServer::new(|| {
         App::new()
             .service(hello)
