@@ -1,0 +1,15 @@
+C:\Users\DV\RustroverProjects\modus\target\debug\deps\libmarkup5ever-bd93763a1a235c55.rmeta: C:\Users\DV\.cargo\registry\src\index.crates.io-6f17d22bba15001f\markup5ever-0.11.0\lib.rs C:\Users\DV\.cargo\registry\src\index.crates.io-6f17d22bba15001f\markup5ever-0.11.0\data\mod.rs C:\Users\DV\.cargo\registry\src\index.crates.io-6f17d22bba15001f\markup5ever-0.11.0\interface\mod.rs C:\Users\DV\.cargo\registry\src\index.crates.io-6f17d22bba15001f\markup5ever-0.11.0\interface\tree_builder.rs C:\Users\DV\.cargo\registry\src\index.crates.io-6f17d22bba15001f\markup5ever-0.11.0\serialize.rs C:\Users\DV\.cargo\registry\src\index.crates.io-6f17d22bba15001f\markup5ever-0.11.0\util\buffer_queue.rs C:\Users\DV\.cargo\registry\src\index.crates.io-6f17d22bba15001f\markup5ever-0.11.0\util\smallcharset.rs C:\Users\DV\RustroverProjects\modus\target\debug\build\markup5ever-e00693ef25b94b0c\out/generated.rs C:\Users\DV\RustroverProjects\modus\target\debug\build\markup5ever-e00693ef25b94b0c\out/named_entities.rs
+
+C:\Users\DV\RustroverProjects\modus\target\debug\deps\markup5ever-bd93763a1a235c55.d: C:\Users\DV\.cargo\registry\src\index.crates.io-6f17d22bba15001f\markup5ever-0.11.0\lib.rs C:\Users\DV\.cargo\registry\src\index.crates.io-6f17d22bba15001f\markup5ever-0.11.0\data\mod.rs C:\Users\DV\.cargo\registry\src\index.crates.io-6f17d22bba15001f\markup5ever-0.11.0\interface\mod.rs C:\Users\DV\.cargo\registry\src\index.crates.io-6f17d22bba15001f\markup5ever-0.11.0\interface\tree_builder.rs C:\Users\DV\.cargo\registry\src\index.crates.io-6f17d22bba15001f\markup5ever-0.11.0\serialize.rs C:\Users\DV\.cargo\registry\src\index.crates.io-6f17d22bba15001f\markup5ever-0.11.0\util\buffer_queue.rs C:\Users\DV\.cargo\registry\src\index.crates.io-6f17d22bba15001f\markup5ever-0.11.0\util\smallcharset.rs C:\Users\DV\RustroverProjects\modus\target\debug\build\markup5ever-e00693ef25b94b0c\out/generated.rs C:\Users\DV\RustroverProjects\modus\target\debug\build\markup5ever-e00693ef25b94b0c\out/named_entities.rs
+
+C:\Users\DV\.cargo\registry\src\index.crates.io-6f17d22bba15001f\markup5ever-0.11.0\lib.rs:
+C:\Users\DV\.cargo\registry\src\index.crates.io-6f17d22bba15001f\markup5ever-0.11.0\data\mod.rs:
+C:\Users\DV\.cargo\registry\src\index.crates.io-6f17d22bba15001f\markup5ever-0.11.0\interface\mod.rs:
+C:\Users\DV\.cargo\registry\src\index.crates.io-6f17d22bba15001f\markup5ever-0.11.0\interface\tree_builder.rs:
+C:\Users\DV\.cargo\registry\src\index.crates.io-6f17d22bba15001f\markup5ever-0.11.0\serialize.rs:
+C:\Users\DV\.cargo\registry\src\index.crates.io-6f17d22bba15001f\markup5ever-0.11.0\util\buffer_queue.rs:
+C:\Users\DV\.cargo\registry\src\index.crates.io-6f17d22bba15001f\markup5ever-0.11.0\util\smallcharset.rs:
+C:\Users\DV\RustroverProjects\modus\target\debug\build\markup5ever-e00693ef25b94b0c\out/generated.rs:
+C:\Users\DV\RustroverProjects\modus\target\debug\build\markup5ever-e00693ef25b94b0c\out/named_entities.rs:
+
+# env-dep:OUT_DIR=C:\\Users\\DV\\RustroverProjects\\modus\\target\\debug\\build\\markup5ever-e00693ef25b94b0c\\out
