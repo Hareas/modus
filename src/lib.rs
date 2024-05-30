@@ -1,4 +1,4 @@
-#![doc(html_logo_url = "https://raw.githubusercontent.com/Hareas/modus/05edb670f6d7ca52a58c4240311a1f69cae4cf06/logo.svg")]
+#![doc(html_logo_url = "https://raw.githubusercontent.com/Hareas/modus/f84c842b49b7dbbfa4b8f8acb6122d5dc5d92a3b/logo.svg")]
 //! 
 //! Long term portfolio performance and option valuation.
 //!
