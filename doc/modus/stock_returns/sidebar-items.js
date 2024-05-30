@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"derive":["From"],"enum":["StocksError"],"fn":["total_returns"],"struct":["Portfolio"]};
