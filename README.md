@@ -1,7 +1,7 @@
 <br />
 <div align="center">
   <a href="https://github.com/Hareas/modus">
-    <img src="https://raw.githubusercontent.com/Hareas/modus/6d5283ff95528fdbc1671d4c769024f0eb63c9f8/logo.svg" alt="Logo" width="100" height="100">
+    <img src="https://raw.githubusercontent.com/Hareas/modus/ef2e36e131c474f6475313b43a733a90c1f6e76b/logo.svg" alt="Logo" width="100" height="100">
   </a>
 
   <h1 align="center">Modus</h1>
