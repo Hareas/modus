@@ -1,5 +1,7 @@
-#![doc(html_logo_url = "https://raw.githubusercontent.com/Hareas/modus/f84c842b49b7dbbfa4b8f8acb6122d5dc5d92a3b/logo.svg")]
-//! 
+#![doc(
+    html_logo_url = "https://raw.githubusercontent.com/Hareas/modus/f84c842b49b7dbbfa4b8f8acb6122d5dc5d92a3b/logo.svg"
+)]
+//!
 //! Long term portfolio performance and option valuation.
 //!
 //! This library has two main purposes:
@@ -10,28 +12,69 @@
 
 mod yahoo_finance {
     use chrono::DateTime;
+    use curl::easy::{Easy, List};
+    use curl::Error;
+    use modus_derive::From;
     use time::OffsetDateTime;
-    use yahoo_finance_api as yahoo;
-    use yahoo_finance_api::{Quote, YahooError};
+    use yahoo_finance_api::{Quote, YResponse, YahooError};
+
+    /// This custom error uses the custom derive macro From to implement the From trait
+    ///
+    /// Example:
+    /// ```
+    ///  impl From<YahooError> for ProviderError {
+    ///      fn from (_e: YahooError) -> Self {
+    ///          ProviderError::YahooError
+    ///      }
+    ///  }
+    /// ```
+    #[derive(From)]
+    pub enum ProviderError {
+        Error,
+        YahooError,
+    }
+
+    async fn fuck_429(
+        ticker: &str,
+        start: &OffsetDateTime,
+        end: &OffsetDateTime,
+    ) -> Result<YResponse, ProviderError> {
+        let start = start.unix_timestamp();
+        let end = end.unix_timestamp();
+        let mut easy = Easy::new();
+        easy.url(&format!("https://query1.finance.yahoo.com/v8/finance/chart/{ticker}?symbol={ticker}&period1={start}&period2={end}&interval=1d&events=div%7Csplit%7CcapitalGains")).unwrap();
+        let mut list = List::new();
+        list.append("user-agent: curl/7.68.0")?;
+        easy.http_headers(list)?;
+        let mut response_data = Vec::new();
+        {
+            let mut transfer = easy.transfer();
+            transfer.write_function(|data| {
+                response_data.extend_from_slice(data);
+                Ok(data.len())
+            })?;
+            transfer.perform()?;
+        }
+        let response_string = serde_json::from_slice(&response_data).unwrap_or_default();
+
+        Ok(YResponse::from_json(response_string)?)
+    }
 
     async fn yahoo_it(
         ticker: &str,
         start: &OffsetDateTime,
         end: &OffsetDateTime,
-    ) -> Result<Vec<Quote>, YahooError> {
+    ) -> Result<Vec<Quote>, ProviderError> {
         // returns historic quotes with daily interval
-        let provider = yahoo::YahooConnector::new()
-            .get_quote_history(ticker, *start, *end)
-            .await?;
+        let provider = fuck_429(&ticker, start, end).await?;
         // gets the currency the data is in
         let currency = provider.metadata()?.currency;
         // converts the adjclose to USD
         match currency.as_str() {
-            "USD" => provider.quotes(),
+            "USD" => Ok(provider.quotes()?),
             _ => {
                 // returns the exchange rate for the relevant period
-                let currency_quotes = yahoo::YahooConnector::new()
-                    .get_quote_history(&format!("{}=X", currency), *start, *end)
+                let currency_quotes = fuck_429(&format!("{}=X", currency), start, end)
                     .await?
                     .quotes()?;
                 // applies the exchange rate to adjclose
@@ -65,29 +108,31 @@ mod yahoo_finance {
         ticker: &str,
         start: &OffsetDateTime,
         end: &OffsetDateTime,
-    ) -> Result<Vec<Quote>, YahooError> {
+    ) -> Result<Vec<Quote>, ProviderError> {
         yahoo_it(ticker, start, end).await
     }
 
     // returns the exchange rate at a specific date
-    async fn price_at_date(ticker: &str, date: &OffsetDateTime) -> Result<f64, YahooError> {
-        if let Some(c) = yahoo::YahooConnector::new()
-            .get_quote_history(&format!("{}=X", ticker), *date, *date)
+    async fn price_at_date(ticker: &str, date: &OffsetDateTime) -> Result<f64, ProviderError> {
+        if let Some(c) = fuck_429(&format!("{}=X", ticker), date, date)
             .await?
             .quotes()?
             .first()
         {
             Ok(c.close)
         } else {
-            Err(YahooError::EmptyDataSet)
+            Err(ProviderError::YahooError)
         }
     }
 
     // returns the exchange rate with respect to the USD
-    pub async fn check_currency(ticker: &str, date: &OffsetDateTime) -> Result<f64, YahooError> {
-        if let Ok(s) = yahoo::YahooConnector::new()
-            .get_latest_quotes(ticker, "1d")
-            .await
+    pub async fn check_currency(ticker: &str, date: &OffsetDateTime) -> Result<f64, ProviderError> {
+        if let Ok(s) = fuck_429(
+            ticker,
+            &OffsetDateTime::now_utc(),
+            &OffsetDateTime::now_utc(),
+        )
+        .await
         {
             if let Ok(r) = s.metadata() {
                 if r.currency.as_str().ne("USD") {
@@ -126,9 +171,9 @@ pub mod stock_returns {
     use time::error::ComponentRange;
     use time::macros::time;
     use time::{Date, Month, OffsetDateTime};
-    use yahoo_finance_api::{Quote, YahooError};
+    use yahoo_finance_api::Quote;
 
-    use crate::yahoo_finance::{check_currency, get_quotes};
+    use crate::yahoo_finance::{check_currency, get_quotes, ProviderError};
 
     #[derive(Debug, Serialize, Deserialize)]
     struct Position {
@@ -197,7 +242,7 @@ pub mod stock_returns {
     #[derive(From)]
     pub enum StocksError {
         ComponentRange,
-        YahooError,
+        ProviderError,
     }
 
     // the Ok variant is a range with dates in YYYY-MM_DD
@@ -260,7 +305,7 @@ pub mod stock_returns {
     }
 
     /// Returns a Result<BTreeMap<String, f64>, StocksError> where the BTreeMap is composed of a date as key and a percentage gain as value
-    /// and StocksError is a enum with the different types of Error that might have occurred
+    /// and StocksError is an enum with the different types of Error that might have occurred
     pub async fn total_returns(item: &Portfolio) -> Result<BTreeMap<String, f64>, StocksError> {
         // a BTreeMap because the data should be ordered by key
         let mut returns = BTreeMap::new();
@@ -411,12 +456,13 @@ pub mod options {
     //!  if let Some(s) = kelly_ratio(&a_option) { println!("{:?}", s); }
     //! ```
 
-    use rstat::univariate::normal::Normal;
-    use rstat::Distribution;
-    use serde::{Deserialize, Serialize};
     use std::sync::mpsc::RecvError;
     use std::sync::{mpsc, Arc};
     use std::thread;
+
+    use rstat::univariate::normal::Normal;
+    use rstat::Distribution;
+    use serde::{Deserialize, Serialize};
 
     /// Holds the option data
     #[derive(Debug, Serialize, Deserialize, Copy, Clone)]

@@ -4,8 +4,9 @@ use modus::stock_returns::{total_returns, Portfolio, StocksError};
 use serde_json::json;
 #[get("/")]
 async fn hello() -> impl Responder {
-    HttpResponse::Ok()
-        .body("Available enpoints: \n /equities/returns \n /options/bs \n /options/kelly \n /options/mc")
+    HttpResponse::Ok().body(
+        "Available enpoints: \n /equities/returns \n /options/bs \n /options/kelly \n /options/mc",
+    )
 }
 
 async fn returns(item: web::Json<Portfolio>) -> impl Responder {
@@ -15,7 +16,7 @@ async fn returns(item: web::Json<Portfolio>) -> impl Responder {
             StocksError::ComponentRange => {
                 HttpResponse::BadRequest().json(json!({"Error": "Failed to convert the date"}))
             }
-            StocksError::YahooError => HttpResponse::InternalServerError()
+            StocksError::ProviderError => HttpResponse::InternalServerError()
                 .json(json!({"Error": "Yahoo provided a wrong response or didn't respond"})),
         },
     }
