@@ -1,0 +1,270 @@
+cargo:rerun-if-changed=curl
+first run of vcpkg did not find libcurl: Could not find Vcpkg tree: No vcpkg installation found. Set the VCPKG_ROOT environment variable or run 'vcpkg integrate install'
+second run of vcpkg did not find libcurl: Could not find Vcpkg tree: No vcpkg installation found. Set the VCPKG_ROOT environment variable or run 'vcpkg integrate install'
+cargo:root=C:\Users\DV\RustroverProjects\modus\target\debug\build\curl-sys-c61044c4178a1413\out
+cargo:include=C:\Users\DV\RustroverProjects\modus\target\debug\build\curl-sys-c61044c4178a1413\out\include
+cargo:static=1
+cargo:rustc-cfg=libcurl_vendored
+cargo:rustc-cfg=link_libz
+TARGET = Some("x86_64-pc-windows-msvc")
+OPT_LEVEL = Some("0")
+HOST = Some("x86_64-pc-windows-msvc")
+cargo:rerun-if-env-changed=CC_x86_64-pc-windows-msvc
+CC_x86_64-pc-windows-msvc = None
+cargo:rerun-if-env-changed=CC_x86_64_pc_windows_msvc
+CC_x86_64_pc_windows_msvc = None
+cargo:rerun-if-env-changed=HOST_CC
+HOST_CC = None
+cargo:rerun-if-env-changed=CC
+CC = None
+cargo:rerun-if-env-changed=CRATE_CC_NO_DEFAULTS
+CRATE_CC_NO_DEFAULTS = None
+CARGO_CFG_TARGET_FEATURE = Some("cmpxchg16b,fxsr,sse,sse2,sse3")
+DEBUG = Some("true")
+cargo:rerun-if-env-changed=CFLAGS_x86_64-pc-windows-msvc
+CFLAGS_x86_64-pc-windows-msvc = None
+cargo:rerun-if-env-changed=CFLAGS_x86_64_pc_windows_msvc
+CFLAGS_x86_64_pc_windows_msvc = None
+cargo:rerun-if-env-changed=HOST_CFLAGS
+HOST_CFLAGS = None
+cargo:rerun-if-env-changed=CFLAGS
+CFLAGS = None
+cargo:rerun-if-env-changed=CC_ENABLE_DEBUG_OUTPUT
+asyn-thread.c
+base64.c
+altsvc.c
+bufq.c
+bufref.c
+cfilters.c
+cf-h1-proxy.c
+cf-haproxy.c
+cf-https-connect.c
+cf-socket.c
+conncache.c
+connect.c
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+cookie.c
+content_encoding.c
+curl_addrinfo.c
+curl_get_line.c
+curl_memrchr.c
+curl_range.c
+curl_threads.c
+curl_trc.c
+doh.c
+dynbuf.c
+dynhds.c
+easy.c
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+escape.c
+file.c
+fileinfo.c
+fopen.c
+formdata.c
+getenv.c
+getinfo.c
+hash.c
+headers.c
+hmac.c
+hostasyn.c
+hostip.c
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+hsts.c
+hostip6.c
+http.c
+http1.c
+http_aws_sigv4.c
+http_chunks.c
+http_digest.c
+http_proxy.c
+idn.c
+if2ip.c
+inet_ntop.c
+inet_pton.c
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+llist.c
+md5.c
+mime.c
+macos.c
+mprintf.c
+mqtt.c
+multi.c
+netrc.c
+nonblock.c
+noproxy.c
+parsedate.c
+progress.c
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+rand.c
+rename.c
+select.c
+sendf.c
+setopt.c
+sha256.c
+share.c
+slist.c
+socketpair.c
+socks.c
+speedcheck.c
+splay.c
+strcase.c
+strdup.c
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+strerror.c
+strtok.c
+timeval.c
+strtoofft.c
+transfer.c
+url.c
+urlapi.c
+version.c
+vauth.c
+digest.c
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+curl_msh3.c
+curl_ngtcp2.c
+curl_osslq.c
+curl_quiche.c
+vquic.c
+vquic-tls.c
+hostcheck.c
+keylog.c
+vtls.c
+warnless.c
+timediff.c
+http_negotiate.c
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+curl_sspi.c
+socks_sspi.c
+spnego_sspi.c
+vauth.c
+schannel.c
+schannel_verify.c
+x509asn1.c
+bufref.c
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+system_win32.c
+version_win32.c
+digest_sspi.c
+curl_multibyte.c
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+exit code: 0
+cargo:rerun-if-env-changed=AR_x86_64-pc-windows-msvc
+AR_x86_64-pc-windows-msvc = None
+cargo:rerun-if-env-changed=AR_x86_64_pc_windows_msvc
+AR_x86_64_pc_windows_msvc = None
+cargo:rerun-if-env-changed=HOST_AR
+HOST_AR = None
+cargo:rerun-if-env-changed=AR
+AR = None
+cargo:rerun-if-env-changed=ARFLAGS_x86_64-pc-windows-msvc
+ARFLAGS_x86_64-pc-windows-msvc = None
+cargo:rerun-if-env-changed=ARFLAGS_x86_64_pc_windows_msvc
+ARFLAGS_x86_64_pc_windows_msvc = None
+cargo:rerun-if-env-changed=HOST_ARFLAGS
+HOST_ARFLAGS = None
+cargo:rerun-if-env-changed=ARFLAGS
+ARFLAGS = None
+C:\Users\DV\RustroverProjects\modus\target\debug\build\curl-sys-c61044c4178a1413\out\build\f69a63c6d6bb925f-vauth.o : warning LNK4042: object specified more than once; extras ignored
+Replacing C:\Users\DV\RustroverProjects\modus\target\debug\build\curl-sys-c61044c4178a1413\out\build\4da0da058b5259b3-bufref.o
+cargo:rustc-link-lib=static=curl
+cargo:rustc-link-search=native=C:\Users\DV\RustroverProjects\modus\target\debug\build\curl-sys-c61044c4178a1413\out\build
+cargo:rustc-link-lib=ws2_32
+cargo:rustc-link-lib=crypt32

@@ -1,0 +1,1 @@
+C:\Users\DV\RustroverProjects\modus\target\release\libmodus.rlib: C:\Users\DV\RustroverProjects\modus\modus-derive\src\lib.rs C:\Users\DV\RustroverProjects\modus\src\lib.rs C:\Users\DV\RustroverProjects\modus\src\options.rs C:\Users\DV\RustroverProjects\modus\src\stock_returns.rs C:\Users\DV\RustroverProjects\modus\src\yahoo_finance.rs
