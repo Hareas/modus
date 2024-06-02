@@ -182,21 +182,24 @@ pub async fn total_returns(item: &Portfolio) -> Result<BTreeMap<String, f64>, St
                 let previous_index = every_date
                     .iter()
                     .position(|&last_date| last_date == previous_date)
-                    .unwrap();
-                let current_index = every_date.iter().position(|&now| now == date).unwrap();
+                    .unwrap_or(0);
+                let current_index = every_date
+                    .iter()
+                    .position(|&now| now == date)
+                    .unwrap_or(previous_index);
                 if current_index - previous_index > 1 {
                     for missing_date_index in (previous_index + 1)..current_index {
-                        let missing_date = every_date.iter().nth(missing_date_index).unwrap();
-                        returns
-                            .entry(*missing_date)
-                            .or_insert_with(Vec::new)
-                            .push(Position {
-                                // if it's the last quote, weights the old price by the difference between the close and adjclose to avoid distortions...
-                                old_price: old_price * m.close / m.adjclose,
-                                // ... and sets the selling price in USD if it has been sold and does the same weighting or keeps the adjclose otherwise
-                                price: old_price * m.close / m.adjclose,
-                                quantity: n.quantity,
-                            });
+                        if let Some(missing_date) = every_date.iter().nth(missing_date_index) {
+                            returns
+                                .entry(*missing_date)
+                                .or_insert_with(Vec::new)
+                                .push(Position {
+                                    // prices don't change when the market is closed
+                                    old_price: old_price * m.close / m.adjclose,
+                                    price: old_price * m.close / m.adjclose,
+                                    quantity: n.quantity,
+                                });
+                        }
                     }
                 }
             }
