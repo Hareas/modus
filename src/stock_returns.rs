@@ -16,7 +16,7 @@
 //!  if let Ok(s) = total_returns(&portfolio).await { println!("{:?}", s); }
 //! ```
 
-use std::collections::{BTreeMap, HashSet};
+use std::collections::{BTreeMap, BTreeSet};
 
 use chrono::{DateTime, NaiveDate};
 pub use modus_derive::From;
@@ -118,7 +118,7 @@ fn get_range(n: &Equity) -> Result<(OffsetDateTime, OffsetDateTime), ComponentRa
 }
 
 // returns a Result<HashSet<NaiveDate>, StocksError> where the Ok variant is a HashSet with all the holidays
-async fn find_holidays(item: &Portfolio) -> Result<HashSet<NaiveDate>, StocksError> {
+async fn find_dates(item: &Portfolio) -> Result<BTreeSet<NaiveDate>, StocksError> {
     {
         let mut range: Vec<(OffsetDateTime, OffsetDateTime)> = Vec::new();
         for n in item.portfolio.iter() {
@@ -138,17 +138,15 @@ async fn find_holidays(item: &Portfolio) -> Result<HashSet<NaiveDate>, StocksErr
         let every_timestamp = historical_data
             .iter()
             .flat_map(|f| f.iter().map(|g| g.timestamp));
-        let mut seen = HashSet::new();
+        let mut every_date = BTreeSet::new();
         for timestamp in every_timestamp {
             let date = DateTime::from_timestamp(timestamp as i64, 0)
                 .unwrap_or_default()
                 .date_naive();
             // inserts the date into the HashSet, if it can't, removes the existing one from the HashSet without replacing it
-            if !seen.insert(date) {
-                seen.remove(&date);
-            }
+            every_date.insert(date);
         }
-        Ok(seen)
+        Ok(every_date)
     }
 }
 
@@ -157,7 +155,7 @@ async fn find_holidays(item: &Portfolio) -> Result<HashSet<NaiveDate>, StocksErr
 pub async fn total_returns(item: &Portfolio) -> Result<BTreeMap<String, f64>, StocksError> {
     // a BTreeMap because the data should be ordered by key
     let mut returns = BTreeMap::new();
-    let holidays = find_holidays(item).await?;
+    let every_date = find_dates(item).await?;
     // iterates over every element in the portfolio
     for n in item.portfolio.iter() {
         let (start, end) = get_range(n)?;
@@ -173,48 +171,70 @@ pub async fn total_returns(item: &Portfolio) -> Result<BTreeMap<String, f64>, St
         });
         // returns all the quotes for that ticker in the specified range
         let quotes = get_quotes(&n.ticker, &start, &end).await?;
+        let mut previous_date = NaiveDate::MIN;
         for (i, m) in quotes.iter().enumerate() {
             // converts the date from a timestamp to a NaiveDate for a more human-readable YYYY-MM-DD
             let date = DateTime::from_timestamp(m.timestamp as i64, 0)
                 .unwrap_or_default()
                 .date_naive();
             // checks if it's 5pm somewhere, if it is, grabs a beer
-            if !holidays.contains(&date) {
-                returns
-                    .entry(date)
-                    .or_insert_with(Vec::new)
-                    .push(if i == quotes.len() - 1 {
-                        Position {
-                            // if it's the last quote, weights the old price by the difference between the close and adjclose to avoid distortions...
-                            old_price: old_price * m.close / m.adjclose,
-                            // ... and sets the selling price in USD if it has been sold and does the same weighting or keeps the adjclose otherwise
-                            price: adjusted_selling_data
-                                .as_ref()
-                                .map(|sell| sell.price * m.close / m.adjclose)
-                                .unwrap_or_else(|| m.adjclose),
-                            quantity: n.quantity,
-                        }
-                    } else if i == 0 {
-                        Position {
-                            // if it's the first quote weights the old price and the price (buy price in this case) as previously described
-                            old_price: old_price * m.close / m.adjclose,
-                            price: m.close * start_currency_adjustment * m.close / m.adjclose,
-                            quantity: n.quantity,
-                        }
-                    } else {
-                        Position {
-                            old_price,
-                            price: m.adjclose,
-                            quantity: n.quantity,
-                        }
-                    });
-                // if the next quote is the last, sets the old price as the close price converted to USD by the exchange rate
-                old_price = if i == quotes.len() - 2 {
-                    m.close * end_currency_adjustment
-                } else {
-                    m.adjclose
-                };
+            if i > 0 {
+                let previous_index = every_date
+                    .iter()
+                    .position(|&last_date| last_date == previous_date)
+                    .unwrap();
+                let current_index = every_date.iter().position(|&now| now == date).unwrap();
+                if current_index - previous_index > 1 {
+                    for missing_date_index in (previous_index + 1)..current_index {
+                        let missing_date = every_date.iter().nth(missing_date_index).unwrap();
+                        returns
+                            .entry(*missing_date)
+                            .or_insert_with(Vec::new)
+                            .push(Position {
+                                // if it's the last quote, weights the old price by the difference between the close and adjclose to avoid distortions...
+                                old_price: old_price * m.close / m.adjclose,
+                                // ... and sets the selling price in USD if it has been sold and does the same weighting or keeps the adjclose otherwise
+                                price: old_price * m.close / m.adjclose,
+                                quantity: n.quantity,
+                            });
+                    }
+                }
             }
+            returns
+                .entry(date)
+                .or_insert_with(Vec::new)
+                .push(if i == quotes.len() - 1 {
+                    Position {
+                        // if it's the last quote, weights the old price by the difference between the close and adjclose to avoid distortions...
+                        old_price: old_price * m.close / m.adjclose,
+                        // ... and sets the selling price in USD if it has been sold and does the same weighting or keeps the adjclose otherwise
+                        price: adjusted_selling_data
+                            .as_ref()
+                            .map(|sell| sell.price * m.close / m.adjclose)
+                            .unwrap_or_else(|| m.adjclose),
+                        quantity: n.quantity,
+                    }
+                } else if i == 0 {
+                    Position {
+                        // if it's the first quote weights the old price and the price (buy price in this case) as previously described
+                        old_price: old_price * m.close / m.adjclose,
+                        price: m.close * start_currency_adjustment * m.close / m.adjclose,
+                        quantity: n.quantity,
+                    }
+                } else {
+                    Position {
+                        old_price,
+                        price: m.adjclose,
+                        quantity: n.quantity,
+                    }
+                });
+            // if the next quote is the last, sets the old price as the close price converted to USD by the exchange rate
+            old_price = if i == quotes.len() - 2 {
+                m.close * end_currency_adjustment
+            } else {
+                m.adjclose
+            };
+            previous_date = date;
         }
     }
     let mut cumulative: f64 = 1.0;
