@@ -243,6 +243,29 @@
 <a href="#241" id="241">241</a>
 <a href="#242" id="242">242</a>
 <a href="#243" id="243">243</a>
+<a href="#244" id="244">244</a>
+<a href="#245" id="245">245</a>
+<a href="#246" id="246">246</a>
+<a href="#247" id="247">247</a>
+<a href="#248" id="248">248</a>
+<a href="#249" id="249">249</a>
+<a href="#250" id="250">250</a>
+<a href="#251" id="251">251</a>
+<a href="#252" id="252">252</a>
+<a href="#253" id="253">253</a>
+<a href="#254" id="254">254</a>
+<a href="#255" id="255">255</a>
+<a href="#256" id="256">256</a>
+<a href="#257" id="257">257</a>
+<a href="#258" id="258">258</a>
+<a href="#259" id="259">259</a>
+<a href="#260" id="260">260</a>
+<a href="#261" id="261">261</a>
+<a href="#262" id="262">262</a>
+<a href="#263" id="263">263</a>
+<a href="#264" id="264">264</a>
+<a href="#265" id="265">265</a>
+<a href="#266" id="266">266</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Portfolio performance
 //!
 //! Most calculations of portfolio performance don't include the whole data or are affected by when an asset is bought and therefore are not suitable for comparison.
@@ -261,7 +284,7 @@
 //!  if let Ok(s) = total_returns(&amp;portfolio).await { println!("{:?}", s); }
 //! ```
 
-</span><span class="kw">use </span>std::collections::{BTreeMap, HashSet};
+</span><span class="kw">use </span>std::collections::{BTreeMap, BTreeSet};
 
 <span class="kw">use </span>chrono::{DateTime, NaiveDate};
 <span class="kw">pub use </span>modus_derive::From;
@@ -363,7 +386,7 @@
 }
 
 <span class="comment">// returns a Result&lt;HashSet&lt;NaiveDate&gt;, StocksError&gt; where the Ok variant is a HashSet with all the holidays
-</span><span class="kw">async fn </span>find_holidays(item: <span class="kw-2">&amp;</span>Portfolio) -&gt; <span class="prelude-ty">Result</span>&lt;HashSet&lt;NaiveDate&gt;, StocksError&gt; {
+</span><span class="kw">async fn </span>find_dates(item: <span class="kw-2">&amp;</span>Portfolio) -&gt; <span class="prelude-ty">Result</span>&lt;BTreeSet&lt;NaiveDate&gt;, StocksError&gt; {
     {
         <span class="kw">let </span><span class="kw-2">mut </span>range: Vec&lt;(OffsetDateTime, OffsetDateTime)&gt; = Vec::new();
         <span class="kw">for </span>n <span class="kw">in </span>item.portfolio.iter() {
@@ -383,17 +406,15 @@
         <span class="kw">let </span>every_timestamp = historical_data
             .iter()
             .flat_map(|f| f.iter().map(|g| g.timestamp));
-        <span class="kw">let </span><span class="kw-2">mut </span>seen = HashSet::new();
+        <span class="kw">let </span><span class="kw-2">mut </span>every_date = BTreeSet::new();
         <span class="kw">for </span>timestamp <span class="kw">in </span>every_timestamp {
             <span class="kw">let </span>date = DateTime::from_timestamp(timestamp <span class="kw">as </span>i64, <span class="number">0</span>)
                 .unwrap_or_default()
                 .date_naive();
             <span class="comment">// inserts the date into the HashSet, if it can't, removes the existing one from the HashSet without replacing it
-            </span><span class="kw">if </span>!seen.insert(date) {
-                seen.remove(<span class="kw-2">&amp;</span>date);
-            }
+            </span>every_date.insert(date);
         }
-        <span class="prelude-val">Ok</span>(seen)
+        <span class="prelude-val">Ok</span>(every_date)
     }
 }
 
@@ -402,7 +423,7 @@
 </span><span class="kw">pub async fn </span>total_returns(item: <span class="kw-2">&amp;</span>Portfolio) -&gt; <span class="prelude-ty">Result</span>&lt;BTreeMap&lt;String, f64&gt;, StocksError&gt; {
     <span class="comment">// a BTreeMap because the data should be ordered by key
     </span><span class="kw">let </span><span class="kw-2">mut </span>returns = BTreeMap::new();
-    <span class="kw">let </span>holidays = find_holidays(item).<span class="kw">await</span><span class="question-mark">?</span>;
+    <span class="kw">let </span>every_date = find_dates(item).<span class="kw">await</span><span class="question-mark">?</span>;
     <span class="comment">// iterates over every element in the portfolio
     </span><span class="kw">for </span>n <span class="kw">in </span>item.portfolio.iter() {
         <span class="kw">let </span>(start, end) = get_range(n)<span class="question-mark">?</span>;
@@ -418,48 +439,73 @@
         });
         <span class="comment">// returns all the quotes for that ticker in the specified range
         </span><span class="kw">let </span>quotes = get_quotes(<span class="kw-2">&amp;</span>n.ticker, <span class="kw-2">&amp;</span>start, <span class="kw-2">&amp;</span>end).<span class="kw">await</span><span class="question-mark">?</span>;
+        <span class="kw">let </span><span class="kw-2">mut </span>previous_date = NaiveDate::MIN;
         <span class="kw">for </span>(i, m) <span class="kw">in </span>quotes.iter().enumerate() {
             <span class="comment">// converts the date from a timestamp to a NaiveDate for a more human-readable YYYY-MM-DD
             </span><span class="kw">let </span>date = DateTime::from_timestamp(m.timestamp <span class="kw">as </span>i64, <span class="number">0</span>)
                 .unwrap_or_default()
                 .date_naive();
             <span class="comment">// checks if it's 5pm somewhere, if it is, grabs a beer
-            </span><span class="kw">if </span>!holidays.contains(<span class="kw-2">&amp;</span>date) {
-                returns
-                    .entry(date)
-                    .or_insert_with(Vec::new)
-                    .push(<span class="kw">if </span>i == quotes.len() - <span class="number">1 </span>{
-                        Position {
-                            <span class="comment">// if it's the last quote, weights the old price by the difference between the close and adjclose to avoid distortions...
-                            </span>old_price: old_price * m.close / m.adjclose,
-                            <span class="comment">// ... and sets the selling price in USD if it has been sold and does the same weighting or keeps the adjclose otherwise
-                            </span>price: adjusted_selling_data
-                                .as_ref()
-                                .map(|sell| sell.price * m.close / m.adjclose)
-                                .unwrap_or_else(|| m.adjclose),
-                            quantity: n.quantity,
+            </span><span class="kw">if </span>i &gt; <span class="number">0 </span>{
+                <span class="kw">let </span>previous_index = every_date
+                    .iter()
+                    .position(|<span class="kw-2">&amp;</span>last_date| last_date == previous_date)
+                    .unwrap_or(<span class="number">0</span>);
+                <span class="kw">let </span>current_index = every_date
+                    .iter()
+                    .position(|<span class="kw-2">&amp;</span>now| now == date)
+                    .unwrap_or(previous_index);
+                <span class="kw">if </span>current_index - previous_index &gt; <span class="number">1 </span>{
+                    <span class="kw">for </span>missing_date_index <span class="kw">in </span>(previous_index + <span class="number">1</span>)..current_index {
+                        <span class="kw">if let </span><span class="prelude-val">Some</span>(missing_date) = every_date.iter().nth(missing_date_index) {
+                            returns
+                                .entry(<span class="kw-2">*</span>missing_date)
+                                .or_insert_with(Vec::new)
+                                .push(Position {
+                                    <span class="comment">// prices don't change when the market is closed
+                                    </span>old_price: old_price * m.close / m.adjclose,
+                                    price: old_price * m.close / m.adjclose,
+                                    quantity: n.quantity,
+                                });
                         }
-                    } <span class="kw">else if </span>i == <span class="number">0 </span>{
-                        Position {
-                            <span class="comment">// if it's the first quote weights the old price and the price (buy price in this case) as previously described
-                            </span>old_price: old_price * m.close / m.adjclose,
-                            price: m.close * start_currency_adjustment * m.close / m.adjclose,
-                            quantity: n.quantity,
-                        }
-                    } <span class="kw">else </span>{
-                        Position {
-                            old_price,
-                            price: m.adjclose,
-                            quantity: n.quantity,
-                        }
-                    });
-                <span class="comment">// if the next quote is the last, sets the old price as the close price converted to USD by the exchange rate
-                </span>old_price = <span class="kw">if </span>i == quotes.len() - <span class="number">2 </span>{
-                    m.close * end_currency_adjustment
-                } <span class="kw">else </span>{
-                    m.adjclose
-                };
+                    }
+                }
             }
+            returns
+                .entry(date)
+                .or_insert_with(Vec::new)
+                .push(<span class="kw">if </span>i == quotes.len() - <span class="number">1 </span>{
+                    Position {
+                        <span class="comment">// if it's the last quote, weights the old price by the difference between the close and adjclose to avoid distortions...
+                        </span>old_price: old_price * m.close / m.adjclose,
+                        <span class="comment">// ... and sets the selling price in USD if it has been sold and does the same weighting or keeps the adjclose otherwise
+                        </span>price: adjusted_selling_data
+                            .as_ref()
+                            .map(|sell| sell.price * m.close / m.adjclose)
+                            .unwrap_or_else(|| m.adjclose),
+                        quantity: n.quantity,
+                    }
+                } <span class="kw">else if </span>i == <span class="number">0 </span>{
+                    Position {
+                        <span class="comment">// if it's the first quote weights the old price and the price (buy price in this case) as previously described
+                        </span>old_price: old_price * m.close / m.adjclose,
+                        price: m.close * start_currency_adjustment * m.close / m.adjclose,
+                        quantity: n.quantity,
+                    }
+                } <span class="kw">else </span>{
+                    Position {
+                        old_price,
+                        price: m.adjclose,
+                        quantity: n.quantity,
+                    }
+                });
+            <span class="comment">// if the next quote is the last, sets the old price as the close price converted to USD by the exchange rate
+            </span>old_price = <span class="kw">if </span>i == quotes.len() - <span class="number">2 </span>{
+                m.close * end_currency_adjustment
+            } <span class="kw">else </span>{
+                m.adjclose
+            };
+            previous_date = date;
         }
     }
     <span class="kw">let </span><span class="kw-2">mut </span>cumulative: f64 = <span class="number">1.0</span>;
